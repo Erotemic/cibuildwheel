@@ -301,6 +301,13 @@ def main() -> None:
 
             manylinux_images[build_platform] = image
 
+    # TODO: Rename to OCI_EXE?  (OCI = Open Container Initiative)
+    oci_exe = os.environ.get("CIBW_OCI_EXE", "docker")
+    # Can add things like "--privledged" or "--cap-add CAP_SYS_ADMIN"
+    oci_extra_args_create = os.environ.get("CIBW_OCI_EXTRA_ARGS_CREATE", "")
+    oci_extra_args_common = os.environ.get("CIBW_OCI_EXTRA_ARGS_COMMON", "")
+    oci_extra_args_start = os.environ.get("CIBW_OCI_EXTRA_ARGS_START", "")
+
     build_options = BuildOptions(
         architectures=archs,
         package_dir=package_dir,
@@ -318,6 +325,10 @@ def main() -> None:
         environment=environment,
         dependency_constraints=dependency_constraints,
         manylinux_images=manylinux_images,
+        oci_exe=oci_exe,
+        oci_extra_args_create=oci_extra_args_create,
+        oci_extra_args_common=oci_extra_args_common,
+        oci_extra_args_start=oci_extra_args_start,
     )
 
     # Python is buffering by default when running on the CI platforms, giving problems interleaving subprocess call output with unflushed calls to 'print'

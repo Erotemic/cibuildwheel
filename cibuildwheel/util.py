@@ -193,6 +193,11 @@ class BuildOptions(NamedTuple):
     test_requires: List[str]
     test_extras: str
     build_verbosity: int
+    oci_exe: str
+    oci_extra_args_create: str
+    oci_extra_args_common: str
+    oci_extra_args_start: str
+    # container_project_path : str
 
 
 class NonPlatformWheelError(Exception):
