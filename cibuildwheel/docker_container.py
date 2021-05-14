@@ -22,6 +22,19 @@ class DockerContainer:
     A bash shell is running in the remote container. When `call()` is invoked,
     the command is relayed to the remote shell, and the results are streamed
     back to cibuildwheel.
+
+    Example:
+        >>> from cibuildwheel.docker_container import *  # NOQA
+        >>> docker_image = 'quay.io/pypa/manylinux_2_24_x86_64:2021-05-05-e1501b7'
+        >>> with DockerContainer(docker_image) as self:
+        ...     self.call(['echo', 'hello world'])
+        ...     self.call(['cat', '/proc/1/cgroup'])
+        ...     print(self.get_environment())
+
+        >>> with DockerContainer(docker_image, docker_exe='podman') as self:
+        ...     self.call(['echo', 'hello world'])
+        ...     self.call(['cat', '/proc/1/cgroup'])
+        ...     print(self.get_environment())
     """
 
     UTILITY_PYTHON = "/opt/python/cp38-cp38/bin/python"
@@ -31,7 +44,8 @@ class DockerContainer:
     bash_stdout: IO[bytes]
 
     def __init__(
-        self, docker_image: str, simulate_32_bit: bool = False, cwd: Optional[PathOrStr] = None
+        self, docker_image: str, simulate_32_bit: bool = False, cwd: Optional[PathOrStr] = None,
+        docker_exe: str = "docker",
     ):
         if not docker_image:
             raise ValueError("Must have a non-empty docker image to run.")
@@ -40,6 +54,7 @@ class DockerContainer:
         self.simulate_32_bit = simulate_32_bit
         self.cwd = cwd
         self.name: Optional[str] = None
+        self.docker_exe = docker_exe
 
     def __enter__(self) -> "DockerContainer":
         self.name = f"cibuildwheel-{uuid.uuid4()}"
@@ -47,7 +62,7 @@ class DockerContainer:
         shell_args = ["linux32", "/bin/bash"] if self.simulate_32_bit else ["/bin/bash"]
         subprocess.run(
             [
-                "docker",
+                f"{self.docker_exe}",
                 "create",
                 "--env=CIBUILDWHEEL",
                 f"--name={self.name}",
@@ -61,7 +76,7 @@ class DockerContainer:
         )
         self.process = subprocess.Popen(
             [
-                "docker",
+                f"{self.docker_exe}",
                 "start",
                 "--attach",
                 "--interactive",
@@ -93,7 +108,8 @@ class DockerContainer:
 
         assert isinstance(self.name, str)
 
-        subprocess.run(["docker", "rm", "--force", "-v", self.name], stdout=subprocess.DEVNULL)
+        subprocess.run([f"{self.docker_exe}", "rm", "--force", "-v", self.name], stdout=subprocess.DEVNULL)
+
         self.name = None
 
     def copy_into(self, from_path: Path, to_path: PurePath) -> None:
@@ -105,14 +121,14 @@ class DockerContainer:
         if from_path.is_dir():
             self.call(["mkdir", "-p", to_path])
             subprocess.run(
-                f"tar cf - . | docker exec -i {self.name} tar -xC {shell_quote(to_path)} -f -",
+                f"tar cf - . | {self.docker_exe} exec -i {self.name} tar -xC {shell_quote(to_path)} -f -",
                 shell=True,
                 check=True,
                 cwd=from_path,
             )
         else:
             subprocess.run(
-                f'cat {shell_quote(from_path)} | docker exec -i {self.name} sh -c "cat > {shell_quote(to_path)}"',
+                f'cat {shell_quote(from_path)} | {self.docker_exe} exec -i {self.name} sh -c "cat > {shell_quote(to_path)}"',
                 shell=True,
                 check=True,
             )
@@ -122,7 +138,7 @@ class DockerContainer:
         to_path.mkdir(parents=True, exist_ok=True)
 
         subprocess.run(
-            f"docker exec -i {self.name} tar -cC {shell_quote(from_path)} -f - . | tar -xf -",
+            f"{self.docker_exe} exec -i {self.name} tar -cC {shell_quote(from_path)} -f - . | tar -xf -",
             shell=True,
             check=True,
             cwd=to_path,
