@@ -301,7 +301,7 @@ class DockerContainer:
                 encoding="utf8",
                 errors="surrogateescape",
         )
-        print('message = {}'.format(message))
+        # print('message = {}'.format(message))
         self.bash_stdin.write(message)
         self.bash_stdin.flush()
 
@@ -339,7 +339,6 @@ class DockerContainer:
         if returncode != 0:
             raise subprocess.CalledProcessError(returncode, args, output)
 
-        print('output = {!r}'.format(output))
         print('end call')
 
         return output
