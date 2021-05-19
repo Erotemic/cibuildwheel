@@ -70,6 +70,10 @@ class DockerContainer:
             "--interactive",
             #https://github.com/containers/podman/issues/4325
             "--events-backend=file",
+            # https://stackoverflow.com/questions/30984569/error-error-creating-aufs-mount-to-when-building-dockerfile
+            "--storage-driver=vfs",
+            # https://github.com/containers/podman/issues/2347
+            f"--root={os.environ['HOME']}/.local/share/containers/vfs-storage/",
             # Add Z-flags for SELinux
             "--volume=/:/host:Z",  # ignored on CircleCI
             # Removed becasue this does not work on podman if the workdir does
@@ -91,6 +95,9 @@ class DockerContainer:
                 "--interactive",
                 #https://github.com/containers/podman/issues/4325
                 "--events-backend=file",
+                # https://stackoverflow.com/questions/30984569/error-error-creating-aufs-mount-to-when-building-dockerfile
+                # "--storage-driver=vfs",
+                f"--root {os.environ['HOME']}/.local/share/containers/vfs-storage/",
                 self.name,
             ],
             stdin=subprocess.PIPE,
