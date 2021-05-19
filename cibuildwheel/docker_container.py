@@ -77,6 +77,7 @@ class DockerContainer:
             "--interactive",
             #https://github.com/containers/podman/issues/4325
             "--events-backend=file",
+            "--privileged",
             ] + self.common_docker_flags + [
             # Add Z-flags for SELinux
             "--volume=/:/host:Z",  # ignored on CircleCI
@@ -174,14 +175,71 @@ class DockerContainer:
 
     def copy_out(self, from_path: PurePath, to_path: Path) -> None:
         # note: we assume from_path is a dir
+        print(f'COPY OUT: {from_path} -> {to_path}')
         to_path.mkdir(parents=True, exist_ok=True)
+        # import xdev
+        # xdev.embed()
 
+        # command = f"{self.docker_exe} exec {self.common_docker_flags_join} --privileged --tty -i {self.name} tar -cC {shell_quote(from_path)} -f - . | tar -xf -"
+        # subprocess.run(command, shell=True, check=True, cwd=to_path)
+
+        # command = f"{self.docker_exe} exec {self.common_docker_flags_join} -i {self.name} tar -cC {shell_quote(from_path)} -f - {str(self.cwd)} | tar -xf -"
+        # command = f"{self.docker_exe} exec {self.common_docker_flags_join} -i {self.name} tar -cC {shell_quote(from_path)} -f - {str(self.cwd)}"
+        # command = f"{self.docker_exe} exec {self.common_docker_flags_join} -i {self.name} tar -cC {shell_quote(from_path)} -f - . | tar -xvf -"
+        # command = f"{self.docker_exe} exec {self.common_docker_flags_join} -i {self.name} tar -cC {shell_quote(from_path)} -f - . | cat > output.tar"
+        # tar -xf -"
+
+        # command = f"{self.docker_exe} exec {self.common_docker_flags_join} -i {self.name} ls -al /project"
+        # command = f"{self.docker_exe} exec {self.common_docker_flags_join} -i {self.name} ls -al {shell_quote(from_path)}"
+        # subprocess.run(command, shell=True, check=True, cwd=to_path)
+        # command = f"{self.docker_exe} exec {self.common_docker_flags_join} -i {self.name} ls -al /tmp"
+        # subprocess.run(command, shell=True, check=True, cwd=to_path)
+
+        # command = f"{self.docker_exe} exec {self.common_docker_flags_join} -i {self.name} du -sh /tmp/output-{self.name}.tar"
+        # subprocess.run(command, shell=True, check=True, cwd=to_path)
+        # tar -cC {shell_quote(from_path)} -f - . | tar -xf -"
+
+        # subprocess.run(
+        #     command,
+        #     shell=True,
+        #     check=True,
+        #     cwd=to_path,
+        # )
+
+        command = f"{self.docker_exe} exec {self.common_docker_flags_join} -i {self.name} tar -cC {shell_quote(from_path)} -f /tmp/output-{self.name}.tar ."
         subprocess.run(
-            f"{self.docker_exe} exec {self.common_docker_flags_join} -i {self.name} tar -cC {shell_quote(from_path)} -f - . | tar -xf -",
+            command,
             shell=True,
             check=True,
             cwd=to_path,
         )
+
+        # command = f"{self.docker_exe} exec {self.common_docker_flags_join} -i {self.name} cat /tmp/output-{self.name}.tar > output-{self.name}.tar"
+        command = f"{self.docker_exe} cp {self.common_docker_flags_join} {self.name}:/tmp/output-{self.name}.tar output-{self.name}.tar"
+        subprocess.run(
+            command,
+            shell=True,
+            check=True,
+            cwd=to_path,
+        )
+
+        # command = f"{self.docker_exe} exec {self.common_docker_flags_join} -i {self.name} tar -cC {shell_quote(from_path)} -f - . | cat > output-{self.name}.tar"
+        # subprocess.run(
+        #     command,
+        #     shell=True,
+        #     check=True,
+        #     cwd=to_path,
+        # )
+
+        command = f"tar -xvf output-{self.name}.tar"
+        subprocess.run(
+            command,
+            shell=True,
+            check=True,
+            cwd=to_path,
+        )
+
+        os.unlink(to_path / f"output-{self.name}.tar")
 
     def glob(self, path: PurePath, pattern: str) -> List[PurePath]:
         glob_pattern = os.path.join(str(path), pattern)
@@ -268,13 +326,9 @@ class DockerContainer:
                 returncode = int(returncode_str)
                 # add the last line to output, without the footer
                 part = line[0:footer_offset]
-                if part:
-                    print('part = {!r}'.format(part))
                 output_io.write(part)
                 break
             else:
-                if line:
-                    print('line = {!r}'.format(line))
                 output_io.write(line)
 
         if isinstance(output_io, io.BytesIO):
