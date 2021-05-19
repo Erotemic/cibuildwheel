@@ -147,6 +147,8 @@ class DockerContainer:
         # For podman this will output
         # open pidfd: No such process
 
+        self.bash_stdin.close()
+
         self.process.terminate()
         self.process.wait()
 
@@ -154,6 +156,8 @@ class DockerContainer:
         # self.bash_stdin = None
         # self.bash_stdout = None
 
+        # When using podman there seems to be some race condition. Give it a
+        # bit of extra time.
         import time
         time.sleep(0.01)
 
@@ -162,7 +166,6 @@ class DockerContainer:
         # import ubelt as ub
         # ub.cmd([self.docker_exe, "ps", "-a"] + self.common_docker_flags, verbose=3)
 
-        self.bash_stdin.close()
         subprocess.run([self.docker_exe, "rm"] + self.common_docker_flags + ["--force", "-v", self.name], stdout=subprocess.DEVNULL)
 
         # ub.cmd([self.docker_exe, "ps", "-a"] + self.common_docker_flags, verbose=3)
