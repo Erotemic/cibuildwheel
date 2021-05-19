@@ -60,6 +60,12 @@ class DockerContainer:
         self.name = f"cibuildwheel-{uuid.uuid4()}"
 
         # cwd_args = ["-w", str(self.cwd)] if self.cwd else []
+        self.common_docker_flags = [
+            # https://stackoverflow.com/questions/30984569/error-error-creating-aufs-mount-to-when-building-dockerfile
+            "--storage-driver=vfs",
+            # https://github.com/containers/podman/issues/2347
+            f"--root={os.environ['HOME']}/.local/share/containers/vfs-storage/",
+        ]
 
         shell_args = ["linux32", "/bin/bash"] if self.simulate_32_bit else ["/bin/bash"]
         create_args = [
@@ -70,10 +76,7 @@ class DockerContainer:
             "--interactive",
             #https://github.com/containers/podman/issues/4325
             "--events-backend=file",
-            # https://stackoverflow.com/questions/30984569/error-error-creating-aufs-mount-to-when-building-dockerfile
-            "--storage-driver=vfs",
-            # https://github.com/containers/podman/issues/2347
-            f"--root={os.environ['HOME']}/.local/share/containers/vfs-storage/",
+            ] + self.common_docker_flags + [
             # Add Z-flags for SELinux
             "--volume=/:/host:Z",  # ignored on CircleCI
             # Removed becasue this does not work on podman if the workdir does
@@ -87,6 +90,8 @@ class DockerContainer:
             create_args,
             check=True,
         )
+
+        self.common_docker_flags_join = ' '.join(self.common_docker_flags)
         self.process = subprocess.Popen(
             [
                 self.docker_exe,
@@ -95,9 +100,7 @@ class DockerContainer:
                 "--interactive",
                 #https://github.com/containers/podman/issues/4325
                 "--events-backend=file",
-                # https://stackoverflow.com/questions/30984569/error-error-creating-aufs-mount-to-when-building-dockerfile
-                # "--storage-driver=vfs",
-                f"--root {os.environ['HOME']}/.local/share/containers/vfs-storage/",
+            ] + self.common_docker_flags + [
                 self.name,
             ],
             stdin=subprocess.PIPE,
@@ -156,14 +159,14 @@ class DockerContainer:
         if from_path.is_dir():
             self.call(["mkdir", "-p", to_path])
             subprocess.run(
-                f"tar cf - . | {self.docker_exe} exec -i {self.name} tar -xC {shell_quote(to_path)} -f -",
+                f"tar cf - . | {self.docker_exe} exec {self.common_docker_flags_join} -i {self.name} tar -xC {shell_quote(to_path)} -f -",
                 shell=True,
                 check=True,
                 cwd=from_path,
             )
         else:
             subprocess.run(
-                f'cat {shell_quote(from_path)} | {self.docker_exe} exec -i {self.name} sh -c "cat > {shell_quote(to_path)}"',
+                f'cat {shell_quote(from_path)} | {self.docker_exe} exec {self.common_docker_flags_join} -i {self.name} sh -c "cat > {shell_quote(to_path)}"',
                 shell=True,
                 check=True,
             )
@@ -173,7 +176,7 @@ class DockerContainer:
         to_path.mkdir(parents=True, exist_ok=True)
 
         subprocess.run(
-            f"{self.docker_exe} exec -i {self.name} tar -cC {shell_quote(from_path)} -f - . | tar -xf -",
+            f"{self.docker_exe} exec {self.common_docker_flags_join} -i {self.name} tar -cC {shell_quote(from_path)} -f - . | tar -xf -",
             shell=True,
             check=True,
             cwd=to_path,
