@@ -151,12 +151,20 @@ class DockerContainer:
         self.process.wait()
 
         # Close stdin after termination seems to be more graceful with podman
-        self.bash_stdin.close()
+        # self.bash_stdin = None
+        # self.bash_stdout = None
+
+        import time
+        time.sleep(0.01)
 
         assert isinstance(self.name, str)
 
-        subprocess.run([self.docker_exe, "rm"] + self.common_docker_flags + ["--force", "-v", self.name], stdout=subprocess.DEVNULL)
         # import ubelt as ub
+        # ub.cmd([self.docker_exe, "ps", "-a"] + self.common_docker_flags, verbose=3)
+
+        self.bash_stdin.close()
+        subprocess.run([self.docker_exe, "rm"] + self.common_docker_flags + ["--force", "-v", self.name], stdout=subprocess.DEVNULL)
+
         # ub.cmd([self.docker_exe, "ps", "-a"] + self.common_docker_flags, verbose=3)
         # ub.cmd([self.docker_exe, "rm"] + self.common_docker_flags + ["--force", "-v", self.name], verbose=3)
         # ub.cmd([self.docker_exe, "ps", "-a"] + self.common_docker_flags, verbose=3)
