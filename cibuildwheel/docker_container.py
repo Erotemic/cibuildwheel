@@ -62,6 +62,7 @@ class DockerContainer:
         # cwd_args = ["-w", str(self.cwd)] if self.cwd else []
         self.common_docker_flags = [
             # https://stackoverflow.com/questions/30984569/error-error-creating-aufs-mount-to-when-building-dockerfile
+            "--cgroup-manager=cgroupfs",
             "--storage-driver=vfs",
             # https://github.com/containers/podman/issues/2347
             f"--root={os.environ['HOME']}/.local/share/containers/vfs-storage/",
