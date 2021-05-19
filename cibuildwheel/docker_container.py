@@ -69,6 +69,8 @@ class DockerContainer:
             f"--name={self.name}",
             "--interactive",
             "--volume=/:/host",  # ignored on CircleCI
+            # Removed becasue this does not work on podman if the workdir does
+            # not already exist
             # *cwd_args,
             self.docker_image,
             *shell_args,
@@ -192,6 +194,8 @@ class DockerContainer:
         print('start call')
 
         if cwd is None:
+            # Hack because podman wont let us start a container with our
+            # desired working dir
             cwd = self.cwd
 
         chdir = f"cd {cwd}" if cwd else ""
@@ -213,8 +217,7 @@ class DockerContainer:
         # Finally, the remote shell is told to write a footer - this will show
         # up in the output so we know when to stop reading, and will include
         # the returncode of `command`.
-        self.bash_stdin.write(
-            bytes(
+        message = bytes(
                 f"""(
             {chdir}
             env {env_assignments} {command}
@@ -223,8 +226,9 @@ class DockerContainer:
         """,
                 encoding="utf8",
                 errors="surrogateescape",
-            )
         )
+        print('message = {}'.format(message))
+        self.bash_stdin.write(message)
         self.bash_stdin.flush()
 
         if capture_output:
