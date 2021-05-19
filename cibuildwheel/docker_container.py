@@ -68,6 +68,8 @@ class DockerContainer:
             "--env=CIBUILDWHEEL",
             f"--name={self.name}",
             "--interactive",
+            #https://github.com/containers/podman/issues/4325
+            "--events-backend=file",
             "--volume=/:/host",  # ignored on CircleCI
             # Removed becasue this does not work on podman if the workdir does
             # not already exist
@@ -86,6 +88,8 @@ class DockerContainer:
                 "start",
                 "--attach",
                 "--interactive",
+                #https://github.com/containers/podman/issues/4325
+                "--events-backend=file",
                 self.name,
             ],
             stdin=subprocess.PIPE,
