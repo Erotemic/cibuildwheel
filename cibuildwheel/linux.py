@@ -50,7 +50,7 @@ def get_python_configurations(
 def build(options: BuildOptions) -> None:
     try:
         # check docker is installed
-        subprocess.run([f"{options.docker_exe}", "--version"], check=True, stdout=subprocess.DEVNULL)
+        subprocess.run([options.docker_exe, "--version"], check=True, stdout=subprocess.DEVNULL)
     except Exception:
         print(
             f"cibuildwheel: {options.docker_exe} not found. Docker is required to run Linux builds. "
@@ -77,7 +77,6 @@ def build(options: BuildOptions) -> None:
         raise Exception("package_dir must be inside the working directory")
 
     container_project_path = PurePath("/project")
-    container_project_path = PurePath('/builds/computer-vision/kwimage')
 
     container_package_dir = container_project_path / abs_package_dir.relative_to(cwd)
     container_output_dir = PurePath("/output")
@@ -95,12 +94,14 @@ def build(options: BuildOptions) -> None:
             # TODO: break this out, so if we know we happen to be in the right
             # docker image already, we can run this.
             log.step(f"Starting Docker image {docker_image}...")
+            print("Make docker container")
             with DockerContainer(
                 docker_image,
                 simulate_32_bit=platform_tag.endswith("i686"),
                 cwd=container_project_path,
                 docker_exe=options.docker_exe,
             ) as docker:
+                print("Made docker container")
                 build_inside_image(
                     docker, options, container_project_path,
                     container_package_dir, platform_configs,
@@ -121,6 +122,7 @@ def build_inside_image(docker, options, container_project_path,
     Helper function to build requested configurations inside a fixed docker
     image.
     """
+    print('BUILD INSIDE IMAGE')
     log.step("Copying project into Docker...")
     docker.copy_into(Path.cwd(), container_project_path)
 

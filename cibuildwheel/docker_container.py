@@ -58,25 +58,29 @@ class DockerContainer:
 
     def __enter__(self) -> "DockerContainer":
         self.name = f"cibuildwheel-{uuid.uuid4()}"
-        cwd_args = ["-w", str(self.cwd)] if self.cwd else []
+
+        # cwd_args = ["-w", str(self.cwd)] if self.cwd else []
+
         shell_args = ["linux32", "/bin/bash"] if self.simulate_32_bit else ["/bin/bash"]
+        create_args = [
+            self.docker_exe,
+            "create",
+            "--env=CIBUILDWHEEL",
+            f"--name={self.name}",
+            "--interactive",
+            "--volume=/:/host",  # ignored on CircleCI
+            # *cwd_args,
+            self.docker_image,
+            *shell_args,
+        ]
+        print('create_args = {!r}'.format(' '.join(create_args)))
         subprocess.run(
-            [
-                f"{self.docker_exe}",
-                "create",
-                "--env=CIBUILDWHEEL",
-                f"--name={self.name}",
-                "--interactive",
-                "--volume=/:/host",  # ignored on CircleCI
-                *cwd_args,
-                self.docker_image,
-                *shell_args,
-            ],
+            create_args,
             check=True,
         )
         self.process = subprocess.Popen(
             [
-                f"{self.docker_exe}",
+                self.docker_exe,
                 "start",
                 "--attach",
                 "--interactive",
@@ -93,6 +97,22 @@ class DockerContainer:
         # run a noop command to block until the container is responding
         self.call(["/bin/true"])
 
+        if self.cwd:
+            self.call(["pwd"])
+            self.call(["mkdir", "-p", str(self.cwd)])
+            self.call(["ls", "-al", "/"])
+            self.call(["pwd"])
+
+            # Set working directory on running container
+            # (while docker create -w will make the working dir, podman does not)
+            # import ubelt as ub
+            # ub.cmd(f"{self.docker_exe} exec -w {str(self.cwd)} -i {self.name} ", check=True, verbose=3)
+            # subprocess.run(
+            #     f"{self.docker_exe} exec -i {self.name} -w {str(self.cwd)}",
+            #     shell=True,
+            #     check=True,
+            # )
+
         return self
 
     def __exit__(
@@ -108,7 +128,7 @@ class DockerContainer:
 
         assert isinstance(self.name, str)
 
-        subprocess.run([f"{self.docker_exe}", "rm", "--force", "-v", self.name], stdout=subprocess.DEVNULL)
+        subprocess.run([self.docker_exe, "rm", "--force", "-v", self.name], stdout=subprocess.DEVNULL)
 
         self.name = None
 
@@ -117,6 +137,7 @@ class DockerContainer:
         # a container is running and the host filesystem is
         # mounted. https://github.com/moby/moby/issues/38995
         # Use `docker exec` instead.
+        print(f'COPY INTO: {from_path} -> {to_path}')
 
         if from_path.is_dir():
             self.call(["mkdir", "-p", to_path])
@@ -167,6 +188,11 @@ class DockerContainer:
         capture_output: bool = False,
         cwd: Optional[PathOrStr] = None,
     ) -> str:
+
+        print('start call')
+
+        if cwd is None:
+            cwd = self.cwd
 
         chdir = f"cd {cwd}" if cwd else ""
         env_assignments = (
@@ -233,6 +259,9 @@ class DockerContainer:
 
         if returncode != 0:
             raise subprocess.CalledProcessError(returncode, args, output)
+
+        print('output = {!r}'.format(output))
+        print('end call')
 
         return output
 
