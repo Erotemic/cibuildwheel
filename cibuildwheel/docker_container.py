@@ -70,7 +70,8 @@ class DockerContainer:
             "--interactive",
             #https://github.com/containers/podman/issues/4325
             "--events-backend=file",
-            "--volume=/:/host",  # ignored on CircleCI
+            # Add Z-flags for SELinux
+            "--volume=/:/host:Z",  # ignored on CircleCI
             # Removed becasue this does not work on podman if the workdir does
             # not already exist
             # *cwd_args,
