@@ -142,12 +142,14 @@ class DockerContainer:
         exc_val: Optional[BaseException],
         exc_tb: Optional[TracebackType],
     ) -> None:
+        import time
 
         # print('EXITING DOCKER OBJECT docker_image = {!r}, {}'.format(self.docker_image, self.name))
         # For podman this will output
         # open pidfd: No such process
 
         self.bash_stdin.close()
+        time.sleep(0.01)
 
         self.process.terminate()
         self.process.wait()
@@ -158,7 +160,6 @@ class DockerContainer:
 
         # When using podman there seems to be some race condition. Give it a
         # bit of extra time.
-        import time
         time.sleep(0.01)
 
         assert isinstance(self.name, str)
