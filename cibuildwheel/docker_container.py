@@ -55,9 +55,11 @@ class DockerContainer:
         self.cwd = cwd
         self.name: Optional[str] = None
         self.docker_exe = docker_exe
+        print('CREATE DOCKER OBJECT docker_image = {!r}'.format(docker_image))
 
     def __enter__(self) -> "DockerContainer":
         self.name = f"cibuildwheel-{uuid.uuid4()}"
+        print('ENTER DOCKER OBJECT docker_image = {!r}, {}'.format(self.docker_image, self.name))
 
         # cwd_args = ["-w", str(self.cwd)] if self.cwd else []
         self.common_docker_flags = [
@@ -117,10 +119,10 @@ class DockerContainer:
         self.call(["/bin/true"])
 
         if self.cwd:
-            self.call(["pwd"])
+            # self.call(["pwd"])
             self.call(["mkdir", "-p", str(self.cwd)])
-            self.call(["ls", "-al", "/"])
-            self.call(["pwd"])
+            # self.call(["ls", "-al", "/"])
+            # self.call(["pwd"])
 
             # Set working directory on running container
             # (while docker create -w will make the working dir, podman does not)
@@ -141,15 +143,26 @@ class DockerContainer:
         exc_tb: Optional[TracebackType],
     ) -> None:
 
-        self.bash_stdin.close()
+        # print('EXITING DOCKER OBJECT docker_image = {!r}, {}'.format(self.docker_image, self.name))
+        # For podman this will output
+        # open pidfd: No such process
+
         self.process.terminate()
         self.process.wait()
 
+        # Close stdin after termination seems to be more graceful with podman
+        self.bash_stdin.close()
+
         assert isinstance(self.name, str)
 
-        subprocess.run([self.docker_exe, "rm", "--force", "-v", self.name], stdout=subprocess.DEVNULL)
+        subprocess.run([self.docker_exe, "rm"] + self.common_docker_flags + ["--force", "-v", self.name], stdout=subprocess.DEVNULL)
+        # import ubelt as ub
+        # ub.cmd([self.docker_exe, "ps", "-a"] + self.common_docker_flags, verbose=3)
+        # ub.cmd([self.docker_exe, "rm"] + self.common_docker_flags + ["--force", "-v", self.name], verbose=3)
+        # ub.cmd([self.docker_exe, "ps", "-a"] + self.common_docker_flags, verbose=3)
 
         self.name = None
+        # print('EXITED DOCKER OBJECT docker_image = {!r}, {}'.format(self.docker_image, self.name))
 
     def copy_into(self, from_path: Path, to_path: PurePath) -> None:
         # `docker cp` causes 'no space left on device' error when
@@ -265,7 +278,7 @@ class DockerContainer:
         cwd: Optional[PathOrStr] = None,
     ) -> str:
 
-        print('start call')
+        # print('start call')
 
         if cwd is None:
             # Hack because podman wont let us start a container with our
@@ -339,7 +352,7 @@ class DockerContainer:
         if returncode != 0:
             raise subprocess.CalledProcessError(returncode, args, output)
 
-        print('end call')
+        # print('end call')
 
         return output
 

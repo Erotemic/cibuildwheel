@@ -64,10 +64,10 @@ def build(options: BuildOptions) -> None:
     python_configurations = get_python_configurations(options.build_selector, options.architectures)
     platforms = [
         ("cp", "manylinux_x86_64", options.manylinux_images["x86_64"]),
-        ("cp", "manylinux_i686", options.manylinux_images["i686"]),
-        ("cp", "manylinux_aarch64", options.manylinux_images["aarch64"]),
-        ("cp", "manylinux_ppc64le", options.manylinux_images["ppc64le"]),
-        ("cp", "manylinux_s390x", options.manylinux_images["s390x"]),
+        # ("cp", "manylinux_i686", options.manylinux_images["i686"]),
+        # ("cp", "manylinux_aarch64", options.manylinux_images["aarch64"]),
+        # ("cp", "manylinux_ppc64le", options.manylinux_images["ppc64le"]),
+        # ("cp", "manylinux_s390x", options.manylinux_images["s390x"]),
         ("pp", "manylinux_x86_64", options.manylinux_images["pypy_x86_64"]),
     ]
 
