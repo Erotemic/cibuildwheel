@@ -251,9 +251,14 @@ class DockerContainer:
                 returncode_str = line[footer_offset : footer_offset + 4]
                 returncode = int(returncode_str)
                 # add the last line to output, without the footer
-                output_io.write(line[0:footer_offset])
+                part = line[0:footer_offset]
+                if part:
+                    print('part = {!r}'.format(part))
+                output_io.write(part)
                 break
             else:
+                if line:
+                    print('line = {!r}'.format(line))
                 output_io.write(line)
 
         if isinstance(output_io, io.BytesIO):
