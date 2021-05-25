@@ -193,7 +193,8 @@ class BuildOptions(NamedTuple):
     test_requires: List[str]
     test_extras: str
     build_verbosity: int
-    docker_exe: str
+    oci_exe: str
+    oci_root: str
     # container_project_path : str
 
 

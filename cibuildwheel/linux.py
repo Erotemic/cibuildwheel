@@ -50,10 +50,10 @@ def get_python_configurations(
 def build(options: BuildOptions) -> None:
     try:
         # check docker is installed
-        subprocess.run([options.docker_exe, "--version"], check=True, stdout=subprocess.DEVNULL)
+        subprocess.run([options.oci_exe, "--version"], check=True, stdout=subprocess.DEVNULL)
     except Exception:
         print(
-            f"cibuildwheel: {options.docker_exe} not found. Docker is required to run Linux builds. "
+            f"cibuildwheel: {options.oci_exe} not found. An OCI exe like Docker or Podman is required to run Linux builds. "
             "If you're building on Travis CI, add `services: [docker]` to your .travis.yml."
             "If you're building on Circle CI in Linux, add a `setup_remote_docker` step to your .circleci/config.yml",
             file=sys.stderr,
@@ -99,7 +99,8 @@ def build(options: BuildOptions) -> None:
                 docker_image,
                 simulate_32_bit=platform_tag.endswith("i686"),
                 cwd=container_project_path,
-                docker_exe=options.docker_exe,
+                oci_exe=options.oci_exe,
+                oci_root=options.oci_root,
             ) as docker:
                 print("Made docker container")
                 build_inside_image(

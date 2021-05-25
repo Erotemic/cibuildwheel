@@ -31,7 +31,7 @@ class DockerContainer:
         ...     self.call(['cat', '/proc/1/cgroup'])
         ...     print(self.get_environment())
 
-        >>> with DockerContainer(docker_image, docker_exe='podman') as self:
+        >>> with DockerContainer(docker_image, oci_exe='podman') as self:
         ...     self.call(['echo', 'hello world'])
         ...     self.call(['cat', '/proc/1/cgroup'])
         ...     print(self.get_environment())
@@ -45,7 +45,7 @@ class DockerContainer:
 
     def __init__(
         self, docker_image: str, simulate_32_bit: bool = False, cwd: Optional[PathOrStr] = None,
-        docker_exe: str = "docker",
+        oci_exe: str = "docker", oci_root="",
     ):
         if not docker_image:
             raise ValueError("Must have a non-empty docker image to run.")
@@ -54,7 +54,8 @@ class DockerContainer:
         self.simulate_32_bit = simulate_32_bit
         self.cwd = cwd
         self.name: Optional[str] = None
-        self.docker_exe = docker_exe
+        self.oci_exe = oci_exe
+        self.oci_root = oci_root
         print('CREATE DOCKER OBJECT docker_image = {!r}'.format(docker_image))
 
     def __enter__(self) -> "DockerContainer":
@@ -62,25 +63,49 @@ class DockerContainer:
         print('ENTER DOCKER OBJECT docker_image = {!r}, {}'.format(self.docker_image, self.name))
 
         # cwd_args = ["-w", str(self.cwd)] if self.cwd else []
-        self.common_docker_flags = [
-            # https://stackoverflow.com/questions/30984569/error-error-creating-aufs-mount-to-when-building-dockerfile
-            "--cgroup-manager=cgroupfs",
-            "--storage-driver=vfs",
-            # https://github.com/containers/podman/issues/2347
-            f"--root={os.environ['HOME']}/.local/share/containers/vfs-storage/",
-        ]
+        self.common_oci_args = []
+
+        if self.oci_exe == 'docker':
+            if self.oci_root != "":
+                raise Exception('CIBW_DOCKER_ROOT only needed for podman')
+
+        if self.oci_exe == 'podman':
+            self.common_oci_args += [
+                # https://stackoverflow.com/questions/30984569/error-error-creating-aufs-mount-to-when-building-dockerfile
+                "--cgroup-manager=cgroupfs",
+                "--storage-driver=vfs",
+            ]
+            if self.oci_root == "":
+                # https://github.com/containers/podman/issues/2347
+                self.common_oci_args += [
+                    f"--root={os.environ['HOME']}/.local/share/containers/vfs-storage/",
+                ]
+            else:
+                self.common_oci_args += [
+                    f"--root={self.oci_root}",
+                ]
 
         shell_args = ["linux32", "/bin/bash"] if self.simulate_32_bit else ["/bin/bash"]
+
+        oci_create_args = []
+        oci_start_args = []
+        if self.oci_exe == 'podman':
+            oci_create_args.extend([
+                #https://github.com/containers/podman/issues/4325
+                "--events-backend=file",
+                "--privileged",
+            ])
+            oci_start_args.extend([
+                "--events-backend=file",
+            ])
+
         create_args = [
-            self.docker_exe,
+            self.oci_exe,
             "create",
             "--env=CIBUILDWHEEL",
             f"--name={self.name}",
             "--interactive",
-            #https://github.com/containers/podman/issues/4325
-            "--events-backend=file",
-            "--privileged",
-            ] + self.common_docker_flags + [
+            ] + oci_create_args + self.common_oci_args + [
             # Add Z-flags for SELinux
             "--volume=/:/host:Z",  # ignored on CircleCI
             # Removed becasue this does not work on podman if the workdir does
@@ -95,16 +120,14 @@ class DockerContainer:
             check=True,
         )
 
-        self.common_docker_flags_join = ' '.join(self.common_docker_flags)
+        self.common_docker_flags_join = ' '.join(self.common_oci_args)
         self.process = subprocess.Popen(
             [
-                self.docker_exe,
+                self.oci_exe,
                 "start",
                 "--attach",
                 "--interactive",
-                #https://github.com/containers/podman/issues/4325
-                "--events-backend=file",
-            ] + self.common_docker_flags + [
+            ] + oci_start_args + self.common_oci_args + [
                 self.name,
             ],
             stdin=subprocess.PIPE,
@@ -119,20 +142,10 @@ class DockerContainer:
         self.call(["/bin/true"])
 
         if self.cwd:
-            # self.call(["pwd"])
+            # Although `docker create -w` does create the working dir if it
+            # does not exist, podman does not. Unfortunately I don't think
+            # there is a way to set the workdir on a running container.
             self.call(["mkdir", "-p", str(self.cwd)])
-            # self.call(["ls", "-al", "/"])
-            # self.call(["pwd"])
-
-            # Set working directory on running container
-            # (while docker create -w will make the working dir, podman does not)
-            # import ubelt as ub
-            # ub.cmd(f"{self.docker_exe} exec -w {str(self.cwd)} -i {self.name} ", check=True, verbose=3)
-            # subprocess.run(
-            #     f"{self.docker_exe} exec -i {self.name} -w {str(self.cwd)}",
-            #     shell=True,
-            #     check=True,
-            # )
 
         return self
 
@@ -144,12 +157,13 @@ class DockerContainer:
     ) -> None:
         import time
 
-        # print('EXITING DOCKER OBJECT docker_image = {!r}, {}'.format(self.docker_image, self.name))
-        # For podman this will output
+        # For podman this can output, adding a small sleep seems to mitigate it
         # open pidfd: No such process
 
         self.bash_stdin.close()
-        time.sleep(0.01)
+
+        if self.oci_exe == 'podman':
+            time.sleep(0.01)
 
         self.process.terminate()
         self.process.wait()
@@ -160,21 +174,14 @@ class DockerContainer:
 
         # When using podman there seems to be some race condition. Give it a
         # bit of extra time.
-        time.sleep(0.01)
+        if self.oci_exe == 'podman':
+            time.sleep(0.01)
 
         assert isinstance(self.name, str)
 
-        # import ubelt as ub
-        # ub.cmd([self.docker_exe, "ps", "-a"] + self.common_docker_flags, verbose=3)
-
-        subprocess.run([self.docker_exe, "rm"] + self.common_docker_flags + ["--force", "-v", self.name], stdout=subprocess.DEVNULL)
-
-        # ub.cmd([self.docker_exe, "ps", "-a"] + self.common_docker_flags, verbose=3)
-        # ub.cmd([self.docker_exe, "rm"] + self.common_docker_flags + ["--force", "-v", self.name], verbose=3)
-        # ub.cmd([self.docker_exe, "ps", "-a"] + self.common_docker_flags, verbose=3)
+        subprocess.run([self.oci_exe, "rm"] + self.common_oci_args + ["--force", "-v", self.name], stdout=subprocess.DEVNULL)
 
         self.name = None
-        # print('EXITED DOCKER OBJECT docker_image = {!r}, {}'.format(self.docker_image, self.name))
 
     def copy_into(self, from_path: Path, to_path: PurePath) -> None:
         # `docker cp` causes 'no space left on device' error when
@@ -186,14 +193,14 @@ class DockerContainer:
         if from_path.is_dir():
             self.call(["mkdir", "-p", to_path])
             subprocess.run(
-                f"tar cf - . | {self.docker_exe} exec {self.common_docker_flags_join} -i {self.name} tar -xC {shell_quote(to_path)} -f -",
+                f"tar cf - . | {self.oci_exe} exec {self.common_docker_flags_join} -i {self.name} tar -xC {shell_quote(to_path)} -f -",
                 shell=True,
                 check=True,
                 cwd=from_path,
             )
         else:
             subprocess.run(
-                f'cat {shell_quote(from_path)} | {self.docker_exe} exec {self.common_docker_flags_join} -i {self.name} sh -c "cat > {shell_quote(to_path)}"',
+                f'cat {shell_quote(from_path)} | {self.oci_exe} exec {self.common_docker_flags_join} -i {self.name} sh -c "cat > {shell_quote(to_path)}"',
                 shell=True,
                 check=True,
             )
@@ -202,69 +209,43 @@ class DockerContainer:
         # note: we assume from_path is a dir
         print(f'COPY OUT: {from_path} -> {to_path}')
         to_path.mkdir(parents=True, exist_ok=True)
-        # import xdev
-        # xdev.embed()
 
-        # command = f"{self.docker_exe} exec {self.common_docker_flags_join} --privileged --tty -i {self.name} tar -cC {shell_quote(from_path)} -f - . | tar -xf -"
-        # subprocess.run(command, shell=True, check=True, cwd=to_path)
+        if self.oci_exe == 'podman':
+            command = f"{self.oci_exe} exec {self.common_docker_flags_join} -i {self.name} tar -cC {shell_quote(from_path)} -f /tmp/output-{self.name}.tar ."
+            subprocess.run(
+                command,
+                shell=True,
+                check=True,
+                cwd=to_path,
+            )
 
-        # command = f"{self.docker_exe} exec {self.common_docker_flags_join} -i {self.name} tar -cC {shell_quote(from_path)} -f - {str(self.cwd)} | tar -xf -"
-        # command = f"{self.docker_exe} exec {self.common_docker_flags_join} -i {self.name} tar -cC {shell_quote(from_path)} -f - {str(self.cwd)}"
-        # command = f"{self.docker_exe} exec {self.common_docker_flags_join} -i {self.name} tar -cC {shell_quote(from_path)} -f - . | tar -xvf -"
-        # command = f"{self.docker_exe} exec {self.common_docker_flags_join} -i {self.name} tar -cC {shell_quote(from_path)} -f - . | cat > output.tar"
-        # tar -xf -"
+            command = f"{self.oci_exe} cp {self.common_docker_flags_join} {self.name}:/tmp/output-{self.name}.tar output-{self.name}.tar"
+            subprocess.run(
+                command,
+                shell=True,
+                check=True,
+                cwd=to_path,
+            )
 
-        # command = f"{self.docker_exe} exec {self.common_docker_flags_join} -i {self.name} ls -al /project"
-        # command = f"{self.docker_exe} exec {self.common_docker_flags_join} -i {self.name} ls -al {shell_quote(from_path)}"
-        # subprocess.run(command, shell=True, check=True, cwd=to_path)
-        # command = f"{self.docker_exe} exec {self.common_docker_flags_join} -i {self.name} ls -al /tmp"
-        # subprocess.run(command, shell=True, check=True, cwd=to_path)
+            command = f"tar -xvf output-{self.name}.tar"
+            subprocess.run(
+                command,
+                shell=True,
+                check=True,
+                cwd=to_path,
+            )
 
-        # command = f"{self.docker_exe} exec {self.common_docker_flags_join} -i {self.name} du -sh /tmp/output-{self.name}.tar"
-        # subprocess.run(command, shell=True, check=True, cwd=to_path)
-        # tar -cC {shell_quote(from_path)} -f - . | tar -xf -"
-
-        # subprocess.run(
-        #     command,
-        #     shell=True,
-        #     check=True,
-        #     cwd=to_path,
-        # )
-
-        command = f"{self.docker_exe} exec {self.common_docker_flags_join} -i {self.name} tar -cC {shell_quote(from_path)} -f /tmp/output-{self.name}.tar ."
-        subprocess.run(
-            command,
-            shell=True,
-            check=True,
-            cwd=to_path,
-        )
-
-        # command = f"{self.docker_exe} exec {self.common_docker_flags_join} -i {self.name} cat /tmp/output-{self.name}.tar > output-{self.name}.tar"
-        command = f"{self.docker_exe} cp {self.common_docker_flags_join} {self.name}:/tmp/output-{self.name}.tar output-{self.name}.tar"
-        subprocess.run(
-            command,
-            shell=True,
-            check=True,
-            cwd=to_path,
-        )
-
-        # command = f"{self.docker_exe} exec {self.common_docker_flags_join} -i {self.name} tar -cC {shell_quote(from_path)} -f - . | cat > output-{self.name}.tar"
-        # subprocess.run(
-        #     command,
-        #     shell=True,
-        #     check=True,
-        #     cwd=to_path,
-        # )
-
-        command = f"tar -xvf output-{self.name}.tar"
-        subprocess.run(
-            command,
-            shell=True,
-            check=True,
-            cwd=to_path,
-        )
-
-        os.unlink(to_path / f"output-{self.name}.tar")
+            os.unlink(to_path / f"output-{self.name}.tar")
+        elif self.oci_exe == 'docker':
+            command = f"{self.oci_exe} exec {self.common_docker_flags_join} -i {self.name} tar -cC {shell_quote(from_path)} -f - . | cat > output-{self.name}.tar"
+            subprocess.run(
+                command,
+                shell=True,
+                check=True,
+                cwd=to_path,
+            )
+        else:
+            raise KeyError(self.oci_exe)
 
     def glob(self, path: PurePath, pattern: str) -> List[PurePath]:
         glob_pattern = os.path.join(str(path), pattern)
