@@ -193,7 +193,7 @@ class DockerContainer:
         if from_path.is_dir():
             self.call(["mkdir", "-p", to_path])
             subprocess.run(
-                f"tar cf - . | {self.oci_exe} exec {self.common_docker_flags_join} -i {self.name} tar -xC {shell_quote(to_path)} -f -",
+                f"tar --exclude-vcs-ignores cf - . | {self.oci_exe} exec {self.common_docker_flags_join} -i {self.name} tar -xC {shell_quote(to_path)} -f -",
                 shell=True,
                 check=True,
                 cwd=from_path,
