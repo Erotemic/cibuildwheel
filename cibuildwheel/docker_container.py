@@ -120,7 +120,7 @@ class DockerContainer:
             check=True,
         )
 
-        self.common_docker_flags_join = ' '.join(self.common_oci_args)
+        self.common_oci_args_join = ' '.join(self.common_oci_args)
         self.process = subprocess.Popen(
             [
                 self.oci_exe,
@@ -193,14 +193,14 @@ class DockerContainer:
         if from_path.is_dir():
             self.call(["mkdir", "-p", to_path])
             subprocess.run(
-                f"tar --exclude-vcs-ignores -cf - . | {self.oci_exe} exec {self.common_docker_flags_join} -i {self.name} tar -xC {shell_quote(to_path)} -f -",
+                f"tar --exclude-vcs-ignores -cf - . | {self.oci_exe} exec {self.common_oci_args_join} -i {self.name} tar -xC {shell_quote(to_path)} -f -",
                 shell=True,
                 check=True,
                 cwd=from_path,
             )
         else:
             subprocess.run(
-                f'cat {shell_quote(from_path)} | {self.oci_exe} exec {self.common_docker_flags_join} -i {self.name} sh -c "cat > {shell_quote(to_path)}"',
+                f'cat {shell_quote(from_path)} | {self.oci_exe} exec {self.common_oci_args_join} -i {self.name} sh -c "cat > {shell_quote(to_path)}"',
                 shell=True,
                 check=True,
             )
@@ -211,7 +211,7 @@ class DockerContainer:
         to_path.mkdir(parents=True, exist_ok=True)
 
         if self.oci_exe == 'podman':
-            command = f"{self.oci_exe} exec {self.common_docker_flags_join} -i {self.name} tar -cC {shell_quote(from_path)} -f /tmp/output-{self.name}.tar ."
+            command = f"{self.oci_exe} exec {self.common_oci_args_join} -i {self.name} tar -cC {shell_quote(from_path)} -f /tmp/output-{self.name}.tar ."
             subprocess.run(
                 command,
                 shell=True,
@@ -219,7 +219,7 @@ class DockerContainer:
                 cwd=to_path,
             )
 
-            command = f"{self.oci_exe} cp {self.common_docker_flags_join} {self.name}:/tmp/output-{self.name}.tar output-{self.name}.tar"
+            command = f"{self.oci_exe} cp {self.common_oci_args_join} {self.name}:/tmp/output-{self.name}.tar output-{self.name}.tar"
             subprocess.run(
                 command,
                 shell=True,
@@ -237,7 +237,7 @@ class DockerContainer:
 
             os.unlink(to_path / f"output-{self.name}.tar")
         elif self.oci_exe == 'docker':
-            command = f"{self.oci_exe} exec {self.common_docker_flags_join} -i {self.name} tar -cC {shell_quote(from_path)} -f - . | cat > output-{self.name}.tar"
+            command = f"{self.oci_exe} exec {self.common_oci_args_join} -i {self.name} tar -cC {shell_quote(from_path)} -f - . | cat > output-{self.name}.tar"
             subprocess.run(
                 command,
                 shell=True,
