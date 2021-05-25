@@ -145,7 +145,7 @@ class DockerContainer:
             # Although `docker create -w` does create the working dir if it
             # does not exist, podman does not. Unfortunately I don't think
             # there is a way to set the workdir on a running container.
-            self.call(["mkdir", "-p", str(self.cwd)])
+            self.call(["mkdir", "-p", str(self.cwd)], cwd="")
 
         return self
 
