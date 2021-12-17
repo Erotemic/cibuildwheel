@@ -76,7 +76,7 @@ class DockerContainer:
         self.oci_common_args: List[str] = []
         self.oci_start_args: List[str] = []
         self.oci_create_args: List[str] = []
-        print('CREATE DOCKER OBJECT docker_image = {!r}'.format(docker_image))
+        print(f"CREATE DOCKER OBJECT docker_image = {docker_image!r}")
 
     def __enter__(self) -> "DockerContainer":
         self.oci_common_args = []
