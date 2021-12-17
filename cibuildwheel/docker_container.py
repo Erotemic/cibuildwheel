@@ -116,7 +116,7 @@ class DockerContainer:
         else:
             self.oci_create_args.extend(list(self.oci_coci_extra_args_create))
 
-        if isinstance(self.oci_common_args, str):
+        if isinstance(self.oci_extra_args_common, str):
             self.oci_common_args.extend(shlex.split(self.oci_extra_args_common))
         else:
             self.oci_common_args.extend(list(self.oci_extra_args_common))
