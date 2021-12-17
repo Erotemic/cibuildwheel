@@ -17,16 +17,16 @@ class DockerContainer:
     """
     An object that represents a running Docker container.
 
-    TODO:
-        - [ ] Rename to OCI container as this now generalizes docker and
-              podman.
-
     Intended for use as a context manager e.g.
     `with DockerContainer(docker_image = 'ubuntu') as docker:`
 
     A bash shell is running in the remote container. When `call()` is invoked,
     the command is relayed to the remote shell, and the results are streamed
     back to cibuildwheel.
+
+    TODO:
+        - [ ] Rename to OCI container as this now generalizes docker and
+              podman?
 
     Example:
         >>> from cibuildwheel.docker_container import *  # NOQA
@@ -68,30 +68,22 @@ class DockerContainer:
         self.name: Optional[str] = None
 
         self.oci_exe = oci_exe
-        # Extra user spec
+
+        # Extra user specified arguments
         self.oci_extra_args_create = oci_extra_args_create
         self.oci_extra_args_common = oci_extra_args_common
         self.oci_extra_args_start = oci_extra_args_start
-        # Will init later
-        self.oci_common_args: List[str] = []
-        self.oci_start_args: List[str] = []
-        self.oci_create_args: List[str] = []
-        print('CREATE DOCKER OBJECT docker_image = {!r}'.format(docker_image))
+
+        # For internal use
+        self._common_args: List[str] = shlex.split(self.oci_extra_args_common)
+        self._start_args: List[str] = shlex.split(self.oci_extra_args_start)
+        self._create_args: List[str] = shlex.split(self.oci_extra_args_create)
+        self._common_args_join: str = " ".join(self._common_args)
 
     def __enter__(self) -> "DockerContainer":
-        self.oci_common_args = []
-        self.oci_create_args = []
-        self.oci_start_args = []
 
         self.name = f"cibuildwheel-{uuid.uuid4()}"
-        # cwd_args = ["-w", str(self.cwd)] if self.cwd else []
         shell_args = ["linux32", "/bin/bash"] if self.simulate_32_bit else ["/bin/bash"]
-
-        self.oci_create_args.extend(shlex.split(self.oci_extra_args_create))
-        self.oci_start_args.extend(shlex.split(self.oci_extra_args_start))
-        self.oci_common_args.extend(shlex.split(self.oci_extra_args_common))
-
-        self.common_oci_args_join: str = " ".join(self.oci_common_args)
 
         subprocess.run(
             [
@@ -101,14 +93,11 @@ class DockerContainer:
                 f"--name={self.name}",
                 "--interactive",
             ]
-            + self.oci_create_args
-            + self.oci_common_args
+            + self._create_args
+            + self._common_args
             + [
-                # Add Z-flags for SELinux
+                # Z-flags is for SELinux
                 "--volume=/:/host:Z",  # ignored on CircleCI
-                # Removed because this does not work on podman if the workdir does
-                # not already exist
-                # *cwd_args,
                 self.docker_image,
                 *shell_args,
             ],
@@ -121,8 +110,8 @@ class DockerContainer:
                 "--attach",
                 "--interactive",
             ]
-            + self.oci_start_args
-            + self.oci_common_args
+            + self._start_args
+            + self._common_args
             + [
                 self.name,
             ],
@@ -168,7 +157,7 @@ class DockerContainer:
         assert isinstance(self.name, str)
 
         subprocess.run(
-            [self.oci_exe, "rm"] + self.oci_common_args + ["--force", "-v", self.name],
+            [self.oci_exe, "rm"] + self._common_args + ["--force", "-v", self.name],
             stdout=subprocess.DEVNULL,
         )
         self.name = None
@@ -181,21 +170,19 @@ class DockerContainer:
 
         if from_path.is_dir():
             self.call(["mkdir", "-p", to_path])
-            # NOTE: The exclude hack is included because to cache the
-            # podman images in gitlab, they need to be in the local directory
-            # but if they are there they will be copied into the image itself,
-            # which is not desirable. Need to update this into a mechanism
-            # where the user can specify directories to exclude when "copy
-            # into" is performed.
+            # NOTE: it may be necessary allow the user to exclude directories
+            # (e.g. --exclude-vcs-ignores --exclude='.cache') in the future.
+            # This is important if the oci images themselves are in the
+            # repo directory we are copying into the container.
             subprocess.run(
-                f"tar --exclude-vcs-ignores --exclude='.cache' -cf - . | {self.oci_exe} exec {self.common_oci_args_join} -i {self.name} tar -xC {shell_quote(to_path)} -f -",
+                f"tar  -cf - . | {self.oci_exe} exec {self._common_args_join} -i {self.name} tar -xC {shell_quote(to_path)} -f -",
                 shell=True,
                 check=True,
                 cwd=from_path,
             )
         else:
             subprocess.run(
-                f'cat {shell_quote(from_path)} | {self.oci_exe} exec {self.common_oci_args_join} -i {self.name} sh -c "cat > {shell_quote(to_path)}"',
+                f'cat {shell_quote(from_path)} | {self.oci_exe} exec {self._common_args_join} -i {self.name} sh -c "cat > {shell_quote(to_path)}"',
                 shell=True,
                 check=True,
             )
@@ -205,7 +192,7 @@ class DockerContainer:
         to_path.mkdir(parents=True, exist_ok=True)
 
         if self.oci_exe == "podman":
-            command = f"{self.oci_exe} exec {self.common_oci_args_join} -i {self.name} tar -cC {shell_quote(from_path)} -f /tmp/output-{self.name}.tar ."
+            command = f"{self.oci_exe} exec {self._common_args_join} -i {self.name} tar -cC {shell_quote(from_path)} -f /tmp/output-{self.name}.tar ."
             subprocess.run(
                 command,
                 shell=True,
@@ -213,7 +200,7 @@ class DockerContainer:
                 cwd=to_path,
             )
 
-            command = f"{self.oci_exe} cp {self.common_oci_args_join} {self.name}:/tmp/output-{self.name}.tar output-{self.name}.tar"
+            command = f"{self.oci_exe} cp {self._common_args_join} {self.name}:/tmp/output-{self.name}.tar output-{self.name}.tar"
             subprocess.run(
                 command,
                 shell=True,
@@ -231,7 +218,7 @@ class DockerContainer:
 
             os.unlink(to_path / f"output-{self.name}.tar")
         elif self.oci_exe == "docker":
-            command = f"{self.oci_exe} exec {self.common_oci_args_join} -i {self.name} tar -cC {shell_quote(from_path)} -f - . | cat > output-{self.name}.tar"
+            command = f"{self.oci_exe} exec {self._common_args_join} -i {self.name} tar -cC {shell_quote(from_path)} -f - . | cat > output-{self.name}.tar"
             subprocess.run(
                 command,
                 shell=True,
