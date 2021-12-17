@@ -46,6 +46,9 @@ class DockerContainer:
     def __init__(
         self, docker_image: str, simulate_32_bit: bool = False, cwd: Optional[PathOrStr] = None,
         oci_exe: str = "docker", oci_root="",
+        oci_create_args_extra="",
+        oci_common_args_extra="",
+        oci_start_args_extra="",
     ):
         if not docker_image:
             raise ValueError("Must have a non-empty docker image to run.")
@@ -56,6 +59,12 @@ class DockerContainer:
         self.name: Optional[str] = None
         self.oci_exe = oci_exe
         self.oci_root = oci_root
+        # Extra user spec
+        self.oci_create_args_extra = oci_create_args_extra
+        self.oci_common_args_extra = oci_common_args_extra
+        self.oci_start_args_extra = oci_start_args_extra
+        # Will init later
+        self.common_oci_args = None
         print('CREATE DOCKER OBJECT docker_image = {!r}'.format(docker_image))
 
     def __enter__(self) -> "DockerContainer":
@@ -89,6 +98,7 @@ class DockerContainer:
 
         oci_create_args = []
         oci_start_args = []
+
         if self.oci_exe == 'podman':
             oci_create_args.extend([
                 #https://github.com/containers/podman/issues/4325
@@ -98,6 +108,21 @@ class DockerContainer:
             oci_start_args.extend([
                 "--events-backend=file",
             ])
+
+        if isinstance(self.oci_create_args_extra, str):
+            oci_create_args.extend(shlex.split(self.oci_create_args_extra))
+        else:
+            oci_create_args.extend(list(self.oci_create_args_extra))
+
+        if isinstance(self.oci_common_args_extra, str):
+            self.common_oci_args.extend(shlex.split(self.oci_common_args_extra))
+        else:
+            self.common_oci_args.extend(list(self.oci_common_args_extra))
+
+        if isinstance(self.oci_start_args_extra, str):
+            oci_start_args.extend(shlex.split(self.oci_start_args_extra))
+        else:
+            oci_start_args.extend(list(self.oci_start_args_extra))
 
         create_args = [
             self.oci_exe,
@@ -115,6 +140,7 @@ class DockerContainer:
             *shell_args,
         ]
         print('create_args = {!r}'.format(' '.join(create_args)))
+        # sys.exit(1)
         subprocess.run(
             create_args,
             check=True,
@@ -139,7 +165,7 @@ class DockerContainer:
         self.bash_stdout = self.process.stdout
 
         # run a noop command to block until the container is responding
-        self.call(["/bin/true"])
+        self.call(["/bin/true"], cwd="")
 
         if self.cwd:
             # Although `docker create -w` does create the working dir if it
@@ -192,6 +218,12 @@ class DockerContainer:
 
         if from_path.is_dir():
             self.call(["mkdir", "-p", to_path])
+            # NOTE: The exclude hack is included because to cache the
+            # podman images in gitlab, they need to be in the local directory
+            # but if they are there they will be copied into the image itself,
+            # which is not desirable. Need to update this into a mechanism
+            # where the user can specify directories to exclude when "copy
+            # into" is performed.
             subprocess.run(
                 f"tar --exclude-vcs-ignores --exclude='.cache' -cf - . | {self.oci_exe} exec {self.common_oci_args_join} -i {self.name} tar -xC {shell_quote(to_path)} -f -",
                 shell=True,
