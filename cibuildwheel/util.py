@@ -194,7 +194,6 @@ class BuildOptions(NamedTuple):
     test_extras: str
     build_verbosity: int
     oci_exe: str
-    oci_root: str
     oci_extra_args_create: str
     oci_extra_args_common: str
     oci_extra_args_start: str

@@ -116,22 +116,17 @@ class DockerContainer:
         else:
             self.oci_create_args.extend(list(self.oci_coci_extra_args_create))
 
-        if isinstance(self.oci_extra_args_common, str):
-            self.oci_common_args.extend(shlex.split(self.oci_extra_args_common))
-        else:
-            self.oci_common_args.extend(list(self.oci_extra_args_common))
-
         if isinstance(self.oci_extra_args_start, str):
             self.oci_start_args.extend(shlex.split(self.oci_extra_args_start))
         else:
             self.oci_start_args.extend(list(self.oci_extra_args_start))
 
-        print('oci_extra_args_create = {!r}'.format(self.oci_extra_args_create))
-        print('oci_extra_args_common = {!r}'.format(self.oci_extra_args_common))
-        print('oci_extra_args_start = {!r}'.format(self.oci_extra_args_start))
-        print('self.oci_create_args = {!r}'.format(self.oci_create_args))
-        print('self.oci_common_args = {!r}'.format(self.oci_common_args))
-        print('self.oci_start_args = {!r}'.format(self.oci_start_args))
+        if isinstance(self.oci_extra_args_common, str):
+            self.oci_common_args.extend(shlex.split(self.oci_extra_args_common))
+        else:
+            self.oci_common_args.extend(list(self.oci_extra_args_common))
+
+        self.common_oci_args_join = ' '.join(self.oci_common_args)
 
         create_args = [
             self.oci_exe,
@@ -149,13 +144,11 @@ class DockerContainer:
             *shell_args,
         ]
         print('create_args = {!r}'.format(' '.join(create_args)))
-        # sys.exit(1)
         subprocess.run(
             create_args,
             check=True,
         )
 
-        self.common_oci_args_join = ' '.join(self.oci_common_args)
         self.process = subprocess.Popen(
             [
                 self.oci_exe,

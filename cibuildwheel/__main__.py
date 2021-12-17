@@ -303,7 +303,6 @@ def main() -> None:
 
     # TODO: Rename to OCI_EXE?  (OCI = Open Container Initiative)
     oci_exe = os.environ.get("CIBW_OCI_EXE", "docker")
-    oci_root = os.environ.get("CIBW_OCI_ROOT", "")
     # Can add things like "--privledged" or "--cap-add CAP_SYS_ADMIN"
     oci_extra_args_create = os.environ.get("CIBW_OCI_EXTRA_ARGS_CREATE", "")
     oci_extra_args_common = os.environ.get("CIBW_OCI_EXTRA_ARGS_COMMON", "")
@@ -327,7 +326,6 @@ def main() -> None:
         dependency_constraints=dependency_constraints,
         manylinux_images=manylinux_images,
         oci_exe=oci_exe,
-        oci_root=oci_root,
         oci_extra_args_create=oci_extra_args_create,
         oci_extra_args_common=oci_extra_args_common,
         oci_extra_args_start=oci_extra_args_start,

@@ -100,7 +100,6 @@ def build(options: BuildOptions) -> None:
                 simulate_32_bit=platform_tag.endswith("i686"),
                 cwd=container_project_path,
                 oci_exe=options.oci_exe,
-                oci_root=options.oci_root,
                 oci_extra_args_create=options.oci_extra_args_create,
                 oci_extra_args_common=options.oci_extra_args_common,
                 oci_extra_args_start=options.oci_extra_args_start,
