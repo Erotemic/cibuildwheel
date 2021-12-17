@@ -111,19 +111,19 @@ class DockerContainer:
             ])
 
         if isinstance(self.oci_extra_args_create, str):
-            self.oci_create_args.extend(shlex.split(self.oci_create))
+            self.oci_create_args.extend(shlex.split(self.oci_extra_args_create))
         else:
-            self.oci_create_args.extend(list(self.oci_create))
+            self.oci_create_args.extend(list(self.oci_coci_extra_args_createreate))
 
         if isinstance(self.oci_extra_args_common, str):
-            self.oci_extra_args_common.extend(shlex.split(self.oci_common))
+            self.oci_extra_args_common.extend(shlex.split(self.oci_extra_args_common))
         else:
-            self.oci_extra_args_common.extend(list(self.oci_common))
+            self.oci_extra_args_common.extend(list(self.oci_extra_args_common))
 
         if isinstance(self.oci_extra_args_start, str):
-            self.oci_start_args.extend(shlex.split(self.oci_start))
+            self.oci_start_args.extend(shlex.split(self.oci_extra_args_start))
         else:
-            self.oci_start_args.extend(list(self.oci_start))
+            self.oci_start_args.extend(list(self.oci_extra_args_start))
 
         create_args = [
             self.oci_exe,
