@@ -32,7 +32,7 @@ class DockerContainer:
         >>> from cibuildwheel.docker_container import *  # NOQA
         >>> import tempfile
         >>> import shutil
-        >>> docker_image = 'quay.io/pypa/manylinux_2_24_x86_64:2021-05-05-e1501b7'
+        >>> docker_image = "quay.io/pypa/manylinux2014_x86_64:2020-05-17-2f8ac3b"
         >>> # Create a test dir to copy into / out of the the container
         >>> temp_root = tempfile.TemporaryDirectory()
         >>> root_dpath = pathlib.Path(temp_root.name)
@@ -48,7 +48,6 @@ class DockerContainer:
         >>> container_fpath = pathlib.Path('/internal-fpath.txt')
         >>> # Test the default container
         >>> with DockerContainer(docker_image=docker_image) as self:
-        ...     expected_output_fpath = dpath_dest / f'output-{self.name}.tar'
         ...     self.call(['echo', 'hello world'])
         ...     self.call(['cat', '/proc/1/cgroup'])
         ...     print(self.get_environment())
@@ -62,8 +61,7 @@ class DockerContainer:
         ...     # can only copy out directories to a tar file
         ...     self.copy_out(container_dpath, dpath_dest)
         ...     print(list(dpath_dest.glob('*')))
-        ...     print([expected_output_fpath])
-        ...     assert expected_output_fpath.exists()
+        >>> assert (dpath_dest / 'test_file.txt').read_text() == 'content'
         >>> # Test the same process works with podman (might need special args)
         >>> if shutil.which('podman') == '':
         ...     import pytest
@@ -76,7 +74,6 @@ class DockerContainer:
         >>> shutil.rmtree(dpath_dest)
         >>> dpath_dest.mkdir()
         >>> with DockerContainer(docker_image=docker_image, oci_exe='podman', **podman_opts) as self:
-        ...     expected_output_fpath = dpath_dest / f'output-{self.name}.tar'
         ...     self.call(['echo', 'hello world'])
         ...     self.call(['cat', '/proc/1/cgroup'])
         ...     print(self.get_environment())
@@ -92,6 +89,7 @@ class DockerContainer:
         ...     print(list(dpath_dest.glob('*')))
         ...     print([expected_output_fpath])
         ...     assert expected_output_fpath.exists()
+        >>> assert (dpath_dest / 'test_file.txt').read_text() == 'content'
     """
 
     UTILITY_PYTHON = "/opt/python/cp38-cp38/bin/python"
@@ -227,7 +225,7 @@ class DockerContainer:
             # This is important if the oci images themselves are in the
             # repo directory we are copying into the container.
             subprocess.run(
-                f"tar  -cf - . | {self.oci_exe} exec {self._common_args_join} -i {self.name} tar -xC {shell_quote(to_path)} -f -",
+                f"tar  cf - . | {self.oci_exe} exec {self._common_args_join} -i {self.name} tar -xC {shell_quote(to_path)} -f -",
                 shell=True,
                 check=True,
                 cwd=from_path,
@@ -259,18 +257,16 @@ class DockerContainer:
                 check=True,
                 cwd=to_path,
             )
-            # I suppose we don't do the unpacking here? Can remove after a
-            # review verifies this.
-            # command = f"tar -xvf output-{self.name}.tar"
-            # subprocess.run(
-            #     command,
-            #     shell=True,
-            #     check=True,
-            #     cwd=to_path,
-            # )
-            # os.unlink(to_path / f"output-{self.name}.tar")
+            command = f"tar -xvf output-{self.name}.tar"
+            subprocess.run(
+                command,
+                shell=True,
+                check=True,
+                cwd=to_path,
+            )
+            os.unlink(to_path / f"output-{self.name}.tar")
         elif self.oci_exe == "docker":
-            command = f"{self.oci_exe} exec {self._common_args_join} -i {self.name} tar -cC {shell_quote(from_path)} -f - . | cat > output-{self.name}.tar"
+            command = f"{self.oci_exe} exec {self._common_args_join} -i {self.name} tar -cC {shell_quote(from_path)} -f - . | tar -xf -"
             subprocess.run(
                 command,
                 shell=True,
