@@ -104,7 +104,7 @@ class DockerContainer:
             self.oci_create_args.extend([
                 #https://github.com/containers/podman/issues/4325
                 "--events-backend=file",
-                "--privileged",
+                # "--privileged",
             ])
             self.oci_start_args.extend([
                 "--events-backend=file",
