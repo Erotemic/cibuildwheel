@@ -101,9 +101,9 @@ def build(options: BuildOptions) -> None:
                 cwd=container_project_path,
                 oci_exe=options.oci_exe,
                 oci_root=options.oci_root,
-                oci_create_args_extra=options.oci_create_args_extra,
-                oci_common_args_extra=options.oci_common_args_extra,
-                oci_start_args_extra=options.oci_start_args_extra,
+                oci_extra_args_create=options.oci_extra_args_create,
+                oci_extra_args_common=options.oci_extra_args_common,
+                oci_extra_args_start=options.oci_extra_args_start,
             ) as docker:
                 print("Made docker container")
                 build_inside_image(

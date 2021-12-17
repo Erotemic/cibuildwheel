@@ -46,9 +46,9 @@ class DockerContainer:
     def __init__(
         self, docker_image: str, simulate_32_bit: bool = False, cwd: Optional[PathOrStr] = None,
         oci_exe: str = "docker", oci_root="",
-        oci_create_args_extra="",
-        oci_common_args_extra="",
-        oci_start_args_extra="",
+        oci_extra_args_create="",
+        oci_extra_args_common="",
+        oci_extra_args_start="",
     ):
         if not docker_image:
             raise ValueError("Must have a non-empty docker image to run.")
@@ -60,11 +60,13 @@ class DockerContainer:
         self.oci_exe = oci_exe
         self.oci_root = oci_root
         # Extra user spec
-        self.oci_create_args_extra = oci_create_args_extra
-        self.oci_common_args_extra = oci_common_args_extra
-        self.oci_start_args_extra = oci_start_args_extra
+        self.oci_extra_args_create = oci_extra_args_create
+        self.oci_extra_args_common = oci_extra_args_common
+        self.oci_extra_args_start = oci_extra_args_start
         # Will init later
-        self.common_oci_args = None
+        self.oci_common_args = None
+        self.oci_start_args = None
+        self.oci_create_args = None
         print('CREATE DOCKER OBJECT docker_image = {!r}'.format(docker_image))
 
     def __enter__(self) -> "DockerContainer":
@@ -72,57 +74,56 @@ class DockerContainer:
         print('ENTER DOCKER OBJECT docker_image = {!r}, {}'.format(self.docker_image, self.name))
 
         # cwd_args = ["-w", str(self.cwd)] if self.cwd else []
-        self.common_oci_args = []
+        self.oci_common_args = []
+        self.oci_create_args = []
+        self.oci_start_args = []
 
         if self.oci_exe == 'docker':
             if self.oci_root != "":
                 raise Exception('CIBW_DOCKER_ROOT only needed for podman')
 
         if self.oci_exe == 'podman':
-            self.common_oci_args += [
+            self.oci_common_args += [
                 # https://stackoverflow.com/questions/30984569/error-error-creating-aufs-mount-to-when-building-dockerfile
                 "--cgroup-manager=cgroupfs",
                 "--storage-driver=vfs",
             ]
             if self.oci_root == "":
                 # https://github.com/containers/podman/issues/2347
-                self.common_oci_args += [
+                self.oci_common_args += [
                     f"--root={os.environ['HOME']}/.local/share/containers/vfs-storage/",
                 ]
             else:
-                self.common_oci_args += [
+                self.oci_common_args += [
                     f"--root={self.oci_root}",
                 ]
 
         shell_args = ["linux32", "/bin/bash"] if self.simulate_32_bit else ["/bin/bash"]
 
-        oci_create_args = []
-        oci_start_args = []
-
         if self.oci_exe == 'podman':
-            oci_create_args.extend([
+            self.oci_create_args.extend([
                 #https://github.com/containers/podman/issues/4325
                 "--events-backend=file",
                 "--privileged",
             ])
-            oci_start_args.extend([
+            self.oci_start_args.extend([
                 "--events-backend=file",
             ])
 
-        if isinstance(self.oci_create_args_extra, str):
-            oci_create_args.extend(shlex.split(self.oci_create_args_extra))
+        if isinstance(self.oci_extra_args_create, str):
+            self.oci_create_args.extend(shlex.split(self.oci_create))
         else:
-            oci_create_args.extend(list(self.oci_create_args_extra))
+            self.oci_create_args.extend(list(self.oci_create))
 
-        if isinstance(self.oci_common_args_extra, str):
-            self.common_oci_args.extend(shlex.split(self.oci_common_args_extra))
+        if isinstance(self.oci_extra_args_common, str):
+            self.oci_extra_args_common.extend(shlex.split(self.oci_common))
         else:
-            self.common_oci_args.extend(list(self.oci_common_args_extra))
+            self.oci_extra_args_common.extend(list(self.oci_common))
 
-        if isinstance(self.oci_start_args_extra, str):
-            oci_start_args.extend(shlex.split(self.oci_start_args_extra))
+        if isinstance(self.oci_extra_args_start, str):
+            self.oci_start_args.extend(shlex.split(self.oci_start))
         else:
-            oci_start_args.extend(list(self.oci_start_args_extra))
+            self.oci_start_args.extend(list(self.oci_start))
 
         create_args = [
             self.oci_exe,
@@ -130,7 +131,7 @@ class DockerContainer:
             "--env=CIBUILDWHEEL",
             f"--name={self.name}",
             "--interactive",
-            ] + oci_create_args + self.common_oci_args + [
+            ] + self.oci_create_args + self.oci_common_args + [
             # Add Z-flags for SELinux
             "--volume=/:/host:Z",  # ignored on CircleCI
             # Removed becasue this does not work on podman if the workdir does
@@ -146,14 +147,14 @@ class DockerContainer:
             check=True,
         )
 
-        self.common_oci_args_join = ' '.join(self.common_oci_args)
+        self.common_oci_args_join = ' '.join(self.oci_common_args)
         self.process = subprocess.Popen(
             [
                 self.oci_exe,
                 "start",
                 "--attach",
                 "--interactive",
-            ] + oci_start_args + self.common_oci_args + [
+            ] + self.oci_start_args + self.oci_common_args + [
                 self.name,
             ],
             stdin=subprocess.PIPE,
@@ -205,7 +206,7 @@ class DockerContainer:
 
         assert isinstance(self.name, str)
 
-        subprocess.run([self.oci_exe, "rm"] + self.common_oci_args + ["--force", "-v", self.name], stdout=subprocess.DEVNULL)
+        subprocess.run([self.oci_exe, "rm"] + self.oci_common_args + ["--force", "-v", self.name], stdout=subprocess.DEVNULL)
 
         self.name = None
 

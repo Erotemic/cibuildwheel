@@ -195,9 +195,9 @@ class BuildOptions(NamedTuple):
     build_verbosity: int
     oci_exe: str
     oci_root: str
-    oci_create_args_extra: str
-    oci_common_args_extra: str
-    oci_start_args_extra: str
+    oci_extra_args_create: str
+    oci_extra_args_common: str
+    oci_extra_args_start: str
     # container_project_path : str
 
 
