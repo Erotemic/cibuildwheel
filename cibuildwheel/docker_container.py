@@ -126,6 +126,13 @@ class DockerContainer:
         else:
             self.oci_start_args.extend(list(self.oci_extra_args_start))
 
+        print('oci_extra_args_create = {!r}'.format(oci_extra_args_create))
+        print('oci_extra_args_common = {!r}'.format(oci_extra_args_common))
+        print('oci_extra_args_start = {!r}'.format(oci_extra_args_start))
+        print('self.oci_create_args = {!r}'.format(self.oci_create_args))
+        print('self.oci_common_args = {!r}'.format(self.oci_common_args))
+        print('self.oci_start_args = {!r}'.format(self.oci_start_args))
+
         create_args = [
             self.oci_exe,
             "create",
