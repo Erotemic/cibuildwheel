@@ -29,6 +29,8 @@ class DockerContainer:
               podman?
 
     Example:
+        >>> # TODO: port complex part of tests to ~/code/cibuildwheel/unit_test/docker_container_test.py
+        >>> # keep a minimal working doctest for an example
         >>> from cibuildwheel.docker_container import *  # NOQA
         >>> import tempfile
         >>> import shutil
