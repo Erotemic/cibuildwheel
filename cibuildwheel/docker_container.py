@@ -78,37 +78,38 @@ class DockerContainer:
         self.oci_create_args = []
         self.oci_start_args = []
 
-        if self.oci_exe == 'docker':
-            if self.oci_root != "":
-                raise Exception('CIBW_DOCKER_ROOT only needed for podman')
+        # if self.oci_exe != 'docker':
+        #     if self.oci_root != "":
+        #         raise Exception('CIBW_DOCKER_ROOT only needed for podman')
 
-        if self.oci_exe == 'podman':
-            self.oci_common_args += [
-                # https://stackoverflow.com/questions/30984569/error-error-creating-aufs-mount-to-when-building-dockerfile
-                "--cgroup-manager=cgroupfs",
-                "--storage-driver=vfs",
-            ]
-            if self.oci_root == "":
-                # https://github.com/containers/podman/issues/2347
-                self.oci_common_args += [
-                    f"--root={os.environ['HOME']}/.local/share/containers/vfs-storage/",
-                ]
-            else:
-                self.oci_common_args += [
-                    f"--root={self.oci_root}",
-                ]
+        # if self.oci_exe == 'podman':
+        #     maybe accept a common default extra args?
+        #     self.oci_common_args += [
+        #         # https://stackoverflow.com/questions/30984569/error-error-creating-aufs-mount-to-when-building-dockerfile
+        #         "--cgroup-manager=cgroupfs",
+        #         "--storage-driver=vfs",
+        #     ]
+        #     if self.oci_root == "":
+        #         # https://github.com/containers/podman/issues/2347
+        #         self.oci_common_args += [
+        #             f"--root={os.environ['HOME']}/.local/share/containers/vfs-storage/",
+        #         ]
+        #     else:
+        #         self.oci_common_args += [
+        #             f"--root={self.oci_root}",
+        #         ]
 
         shell_args = ["linux32", "/bin/bash"] if self.simulate_32_bit else ["/bin/bash"]
 
-        if self.oci_exe == 'podman':
-            self.oci_create_args.extend([
-                #https://github.com/containers/podman/issues/4325
-                "--events-backend=file",
-                # "--privileged",
-            ])
-            self.oci_start_args.extend([
-                "--events-backend=file",
-            ])
+        # if self.oci_exe == 'podman':
+        #     self.oci_create_args.extend([
+        #         #https://github.com/containers/podman/issues/4325
+        #         "--events-backend=file",
+        #         # "--privileged",
+        #     ])
+        #     self.oci_start_args.extend([
+        #         "--events-backend=file",
+        #     ])
 
         if isinstance(self.oci_extra_args_create, str):
             self.oci_create_args.extend(shlex.split(self.oci_extra_args_create))
