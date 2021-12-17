@@ -30,16 +30,68 @@ class DockerContainer:
 
     Example:
         >>> from cibuildwheel.docker_container import *  # NOQA
+        >>> import tempfile
+        >>> import shutil
         >>> docker_image = 'quay.io/pypa/manylinux_2_24_x86_64:2021-05-05-e1501b7'
+        >>> # Create a test dir to copy into / out of the the container
+        >>> temp_root = tempfile.TemporaryDirectory()
+        >>> root_dpath = pathlib.Path(temp_root.name)
+        >>> test_dpath = root_dpath / 'test_dir'
+        >>> test_dpath.mkdir(exist_ok=True, parents=True)
+        >>> test_fpath = test_dpath / 'test_file.txt'
+        >>> with open(test_fpath, 'w') as file:
+        ...     file.write('content')
+        >>> dpath_dest = root_dpath / 'test_dir_dest_docker'
+        >>> dpath_dest.mkdir()
+        >>> fpath_dest = root_dpath / 'test_file_dest_docker.txt'
+        >>> container_dpath = pathlib.Path('/internal-dpath')
+        >>> container_fpath = pathlib.Path('/internal-fpath.txt')
+        >>> # Test the default container
         >>> with DockerContainer(docker_image=docker_image) as self:
+        ...     expected_output_fpath = dpath_dest / f'output-{self.name}.tar'
         ...     self.call(['echo', 'hello world'])
         ...     self.call(['cat', '/proc/1/cgroup'])
         ...     print(self.get_environment())
-
-        >>> with DockerContainer(docker_image=docker_image, oci_exe='podman') as self:
+        ...     # Test round trip of file copy
+        ...     self.copy_into(test_dpath, container_dpath)
+        ...     self.copy_into(test_fpath, container_fpath)
+        ...     content = self.glob(pathlib.Path('/'), '*')
+        ...     # Verify files copied in correctly
+        ...     assert container_dpath in content
+        ...     assert container_fpath in content
+        ...     # can only copy out directories to a tar file
+        ...     self.copy_out(container_dpath, dpath_dest)
+        ...     print(list(dpath_dest.glob('*')))
+        ...     print([expected_output_fpath])
+        ...     assert expected_output_fpath.exists()
+        >>> # Test the same process works with podman (might need special args)
+        >>> if shutil.which('podman') == '':
+        ...     import pytest
+        ...     pytest.skip('podman not installed')
+        >>> podman_opts = dict(
+        ...     oci_extra_args_common=f"--cgroup-manager=cgroupfs --storage-driver=vfs --root={root_dpath}/.local/share/containers/vfs-storage",
+        ...     oci_extra_args_create="--events-backend=file --privileged",
+        ...     oci_extra_args_start="--events-backend=file --cgroup-manager=cgroupfs --storage-driver=vfs",
+        ... )
+        >>> shutil.rmtree(dpath_dest)
+        >>> dpath_dest.mkdir()
+        >>> with DockerContainer(docker_image=docker_image, oci_exe='podman', **podman_opts) as self:
+        ...     expected_output_fpath = dpath_dest / f'output-{self.name}.tar'
         ...     self.call(['echo', 'hello world'])
         ...     self.call(['cat', '/proc/1/cgroup'])
         ...     print(self.get_environment())
+        ...     # Test round trip of file copy
+        ...     self.copy_into(test_dpath, container_dpath)
+        ...     self.copy_into(test_fpath, container_fpath)
+        ...     content = self.glob(pathlib.Path('/'), '*')
+        ...     # Verify files copied in correctly
+        ...     assert container_dpath in content
+        ...     assert container_fpath in content
+        ...     # can only copy out directories to a tar file
+        ...     self.copy_out(container_dpath, dpath_dest)
+        ...     print(list(dpath_dest.glob('*')))
+        ...     print([expected_output_fpath])
+        ...     assert expected_output_fpath.exists()
     """
 
     UTILITY_PYTHON = "/opt/python/cp38-cp38/bin/python"
@@ -207,16 +259,16 @@ class DockerContainer:
                 check=True,
                 cwd=to_path,
             )
-
-            command = f"tar -xvf output-{self.name}.tar"
-            subprocess.run(
-                command,
-                shell=True,
-                check=True,
-                cwd=to_path,
-            )
-
-            os.unlink(to_path / f"output-{self.name}.tar")
+            # I suppose we don't do the unpacking here? Can remove after a
+            # review verifies this.
+            # command = f"tar -xvf output-{self.name}.tar"
+            # subprocess.run(
+            #     command,
+            #     shell=True,
+            #     check=True,
+            #     cwd=to_path,
+            # )
+            # os.unlink(to_path / f"output-{self.name}.tar")
         elif self.oci_exe == "docker":
             command = f"{self.oci_exe} exec {self._common_args_join} -i {self.name} tar -cC {shell_quote(from_path)} -f - . | cat > output-{self.name}.tar"
             subprocess.run(
