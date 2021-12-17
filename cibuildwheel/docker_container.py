@@ -4,6 +4,7 @@ import os
 import shlex
 import subprocess
 import sys
+import time
 import uuid
 from pathlib import Path, PurePath
 from types import TracebackType
@@ -16,12 +17,29 @@ class DockerContainer:
     """
     An object that represents a running Docker container.
 
+    TODO:
+        - [ ] Rename to OCI container as this now generalizes docker and
+              podman.
+
     Intended for use as a context manager e.g.
     `with DockerContainer(docker_image = 'ubuntu') as docker:`
 
     A bash shell is running in the remote container. When `call()` is invoked,
     the command is relayed to the remote shell, and the results are streamed
     back to cibuildwheel.
+
+    Example:
+        >>> from cibuildwheel.docker_container import *  # NOQA
+        >>> docker_image = 'quay.io/pypa/manylinux_2_24_x86_64:2021-05-05-e1501b7'
+        >>> with DockerContainer(docker_image=docker_image) as self:
+        ...     self.call(['echo', 'hello world'])
+        ...     self.call(['cat', '/proc/1/cgroup'])
+        ...     print(self.get_environment())
+
+        >>> with DockerContainer(docker_image=docker_image, oci_exe='podman') as self:
+        ...     self.call(['echo', 'hello world'])
+        ...     self.call(['cat', '/proc/1/cgroup'])
+        ...     print(self.get_environment())
     """
 
     UTILITY_PYTHON = "/opt/python/cp38-cp38/bin/python"
@@ -31,7 +49,15 @@ class DockerContainer:
     bash_stdout: IO[bytes]
 
     def __init__(
-        self, *, docker_image: str, simulate_32_bit: bool = False, cwd: Optional[PathOrStr] = None
+        self,
+        *,
+        docker_image: str,
+        simulate_32_bit: bool = False,
+        cwd: Optional[PathOrStr] = None,
+        oci_exe: str = "docker",
+        oci_extra_args_create: str = "",
+        oci_extra_args_common: str = "",
+        oci_extra_args_start: str = "",
     ):
         if not docker_image:
             raise ValueError("Must have a non-empty docker image to run.")
@@ -41,19 +67,48 @@ class DockerContainer:
         self.cwd = cwd
         self.name: Optional[str] = None
 
+        self.oci_exe = oci_exe
+        # Extra user spec
+        self.oci_extra_args_create = oci_extra_args_create
+        self.oci_extra_args_common = oci_extra_args_common
+        self.oci_extra_args_start = oci_extra_args_start
+        # Will init later
+        self.oci_common_args: List[str] = []
+        self.oci_start_args: List[str] = []
+        self.oci_create_args: List[str] = []
+        print('CREATE DOCKER OBJECT docker_image = {!r}'.format(docker_image))
+
     def __enter__(self) -> "DockerContainer":
+        self.oci_common_args = []
+        self.oci_create_args = []
+        self.oci_start_args = []
+
         self.name = f"cibuildwheel-{uuid.uuid4()}"
-        cwd_args = ["-w", str(self.cwd)] if self.cwd else []
+        # cwd_args = ["-w", str(self.cwd)] if self.cwd else []
         shell_args = ["linux32", "/bin/bash"] if self.simulate_32_bit else ["/bin/bash"]
+
+        self.oci_create_args.extend(shlex.split(self.oci_extra_args_create))
+        self.oci_start_args.extend(shlex.split(self.oci_extra_args_start))
+        self.oci_common_args.extend(shlex.split(self.oci_extra_args_common))
+
+        self.common_oci_args_join: str = " ".join(self.oci_common_args)
+
         subprocess.run(
             [
-                "docker",
+                self.oci_exe,
                 "create",
                 "--env=CIBUILDWHEEL",
                 f"--name={self.name}",
                 "--interactive",
-                "--volume=/:/host",  # ignored on CircleCI
-                *cwd_args,
+            ]
+            + self.oci_create_args
+            + self.oci_common_args
+            + [
+                # Add Z-flags for SELinux
+                "--volume=/:/host:Z",  # ignored on CircleCI
+                # Removed because this does not work on podman if the workdir does
+                # not already exist
+                # *cwd_args,
                 self.docker_image,
                 *shell_args,
             ],
@@ -61,10 +116,14 @@ class DockerContainer:
         )
         self.process = subprocess.Popen(
             [
-                "docker",
+                self.oci_exe,
                 "start",
                 "--attach",
                 "--interactive",
+            ]
+            + self.oci_start_args
+            + self.oci_common_args
+            + [
                 self.name,
             ],
             stdin=subprocess.PIPE,
@@ -76,7 +135,13 @@ class DockerContainer:
         self.bash_stdout = self.process.stdout
 
         # run a noop command to block until the container is responding
-        self.call(["/bin/true"])
+        self.call(["/bin/true"], cwd="")
+
+        if self.cwd:
+            # Although `docker create -w` does create the working dir if it
+            # does not exist, podman does not. Unfortunately I don't think
+            # there is a way to set the workdir on a running container.
+            self.call(["mkdir", "-p", str(self.cwd)], cwd="")
 
         return self
 
@@ -88,12 +153,24 @@ class DockerContainer:
     ) -> None:
 
         self.bash_stdin.close()
+
+        if self.oci_exe == "podman":
+            time.sleep(0.01)
+
         self.process.terminate()
         self.process.wait()
 
+        # When using podman there seems to be some race condition. Give it a
+        # bit of extra time.
+        if self.oci_exe == "podman":
+            time.sleep(0.01)
+
         assert isinstance(self.name, str)
 
-        subprocess.run(["docker", "rm", "--force", "-v", self.name], stdout=subprocess.DEVNULL)
+        subprocess.run(
+            [self.oci_exe, "rm"] + self.oci_common_args + ["--force", "-v", self.name],
+            stdout=subprocess.DEVNULL,
+        )
         self.name = None
 
     def copy_into(self, from_path: Path, to_path: PurePath) -> None:
@@ -104,15 +181,21 @@ class DockerContainer:
 
         if from_path.is_dir():
             self.call(["mkdir", "-p", to_path])
+            # NOTE: The exclude hack is included because to cache the
+            # podman images in gitlab, they need to be in the local directory
+            # but if they are there they will be copied into the image itself,
+            # which is not desirable. Need to update this into a mechanism
+            # where the user can specify directories to exclude when "copy
+            # into" is performed.
             subprocess.run(
-                f"tar cf - . | docker exec -i {self.name} tar -xC {shell_quote(to_path)} -f -",
+                f"tar --exclude-vcs-ignores --exclude='.cache' -cf - . | {self.oci_exe} exec {self.common_oci_args_join} -i {self.name} tar -xC {shell_quote(to_path)} -f -",
                 shell=True,
                 check=True,
                 cwd=from_path,
             )
         else:
             subprocess.run(
-                f'cat {shell_quote(from_path)} | docker exec -i {self.name} sh -c "cat > {shell_quote(to_path)}"',
+                f'cat {shell_quote(from_path)} | {self.oci_exe} exec {self.common_oci_args_join} -i {self.name} sh -c "cat > {shell_quote(to_path)}"',
                 shell=True,
                 check=True,
             )
@@ -121,12 +204,42 @@ class DockerContainer:
         # note: we assume from_path is a dir
         to_path.mkdir(parents=True, exist_ok=True)
 
-        subprocess.run(
-            f"docker exec -i {self.name} tar -cC {shell_quote(from_path)} -f - . | tar -xf -",
-            shell=True,
-            check=True,
-            cwd=to_path,
-        )
+        if self.oci_exe == "podman":
+            command = f"{self.oci_exe} exec {self.common_oci_args_join} -i {self.name} tar -cC {shell_quote(from_path)} -f /tmp/output-{self.name}.tar ."
+            subprocess.run(
+                command,
+                shell=True,
+                check=True,
+                cwd=to_path,
+            )
+
+            command = f"{self.oci_exe} cp {self.common_oci_args_join} {self.name}:/tmp/output-{self.name}.tar output-{self.name}.tar"
+            subprocess.run(
+                command,
+                shell=True,
+                check=True,
+                cwd=to_path,
+            )
+
+            command = f"tar -xvf output-{self.name}.tar"
+            subprocess.run(
+                command,
+                shell=True,
+                check=True,
+                cwd=to_path,
+            )
+
+            os.unlink(to_path / f"output-{self.name}.tar")
+        elif self.oci_exe == "docker":
+            command = f"{self.oci_exe} exec {self.common_oci_args_join} -i {self.name} tar -cC {shell_quote(from_path)} -f - . | cat > output-{self.name}.tar"
+            subprocess.run(
+                command,
+                shell=True,
+                check=True,
+                cwd=to_path,
+            )
+        else:
+            raise KeyError(self.oci_exe)
 
     def glob(self, path: PurePath, pattern: str) -> List[PurePath]:
         glob_pattern = os.path.join(str(path), pattern)
@@ -151,6 +264,11 @@ class DockerContainer:
         capture_output: bool = False,
         cwd: Optional[PathOrStr] = None,
     ) -> str:
+
+        if cwd is None:
+            # Hack because podman won't let us start a container with our
+            # desired working dir
+            cwd = self.cwd
 
         chdir = f"cd {cwd}" if cwd else ""
         env_assignments = (

@@ -72,6 +72,10 @@ class BuildOptions(NamedTuple):
     test_extras: str
     build_verbosity: int
     build_frontend: BuildFrontend
+    oci_exe: str
+    oci_extra_args_create: str
+    oci_extra_args_common: str
+    oci_extra_args_start: str
 
     @property
     def package_dir(self) -> Path:
@@ -419,6 +423,13 @@ class Options:
             test_extras = self.reader.get("test-extras", sep=",")
             build_verbosity_str = self.reader.get("build-verbosity")
 
+            oci_options = dict(
+                oci_exe=self.reader.get("oci-exe"),
+                oci_extra_args_common=self.reader.get("oci-extra-args-common"),
+                oci_extra_args_create=self.reader.get("oci-extra-args-create"),
+                oci_extra_args_start=self.reader.get("oci-extra-args-start"),
+            )
+
             build_frontend: BuildFrontend
             if build_frontend_str == "build":
                 build_frontend = "build"
@@ -517,6 +528,7 @@ class Options:
                 manylinux_images=manylinux_images or None,
                 musllinux_images=musllinux_images or None,
                 build_frontend=build_frontend,
+                **oci_options,
             )
 
     def check_for_invalid_configuration(self, identifiers: List[str]) -> None:

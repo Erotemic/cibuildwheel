@@ -19,6 +19,11 @@ before-test = ""
 test-requires = []
 test-extras = []
 
+oci-exe = "docker"
+oci-extra-args-common = ""
+oci-extra-args-create = ""
+oci-extra-args-start = ""
+
 manylinux-x86_64-image = "manylinux2014"
 manylinux-i686-image = "manylinux2014"
 manylinux-aarch64-image = "manylinux2014"
