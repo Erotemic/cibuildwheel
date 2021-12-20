@@ -132,6 +132,11 @@ class DockerContainer:
         self._create_args: List[str] = shlex.split(self.oci_extra_args_create)
         self._common_args_join: str = " ".join(self._common_args)
 
+        if oci_exe == "podman":
+            self._sleep_time = 0.01
+        else:
+            self._sleep_time = 0.0
+
     def __enter__(self) -> "DockerContainer":
 
         self.name = f"cibuildwheel-{uuid.uuid4()}"
@@ -195,16 +200,16 @@ class DockerContainer:
 
         self.bash_stdin.close()
 
-        if self.oci_exe == "podman":
-            time.sleep(0.01)
+        if self._sleep_time:
+            time.sleep(self._sleep_time)
 
         self.process.terminate()
         self.process.wait()
 
         # When using podman there seems to be some race condition. Give it a
         # bit of extra time.
-        if self.oci_exe == "podman":
-            time.sleep(0.01)
+        if self._sleep_time:
+            time.sleep(self._sleep_time)
 
         assert isinstance(self.name, str)
 

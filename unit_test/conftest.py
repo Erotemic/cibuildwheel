@@ -8,6 +8,7 @@ MOCK_PACKAGE_DIR = Path("some_package_dir")
 
 def pytest_addoption(parser):
     parser.addoption("--run-docker", action="store_true", default=False, help="run docker tests")
+    parser.addoption("--run-podman", action="store_true", default=False, help="run podman tests")
 
 
 def pytest_configure(config):
@@ -15,8 +16,8 @@ def pytest_configure(config):
 
 
 def pytest_collection_modifyitems(config, items):
-    if config.getoption("--run-docker"):
-        # --run-docker given in cli: do not skip docker tests
+    if config.getoption("--run-docker") or config.getoption("--run-podman"):
+        # --run-docker given in cli: do not skip container tests
         return
     skip_docker = pytest.mark.skip(reason="need --run-docker option to run")
     for item in items:

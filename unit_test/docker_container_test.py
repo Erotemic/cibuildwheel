@@ -1,3 +1,10 @@
+"""
+Invocation:
+    pytest unit_test/docker_container_test.py --run-docker -v -s
+    pytest unit_test/docker_container_test.py --run-docker -v -s -k "test_file_operations"
+    pytest unit_test/docker_container_test.py --run-docker -v -s -k "test_no_lf"
+    pytest unit_test/docker_container_test.py --run-docker -v -s -k "test_simple"
+"""
 import platform
 import random
 import shutil
@@ -23,21 +30,46 @@ elif pm == "s390x":
     DEFAULT_IMAGE = "quay.io/pypa/manylinux2014_s390x:2020-05-17-2f8ac3b"
 
 
+def basis_container_kwargs():
+    """
+    Parametarize different container engine invocations.
+    """
+    HAVE_DOCKER = shutil.which("docker") != ""
+    if HAVE_DOCKER:
+        yield {"oci_exe": "docker", "docker_image": DEFAULT_IMAGE}
+    HAVE_PODMAN = shutil.which("podman") != ""
+    if HAVE_PODMAN:
+        # Basic podman usage
+        yield {"oci_exe": "podman", "docker_image": DEFAULT_IMAGE}
+        # VFS Podman usage (for the podman in docker use-case)
+        home = str(Path("~").expanduser())
+        yield {
+            "oci_exe": "podman",
+            "oci_extra_args_common": f"--cgroup-manager=cgroupfs --storage-driver=vfs --root={home}/.local/share/containers/vfs-storage",
+            "oci_extra_args_create": "--events-backend=file --privileged",
+            "oci_extra_args_start": "--events-backend=file --cgroup-manager=cgroupfs --storage-driver=vfs",
+            "docker_image": DEFAULT_IMAGE,
+        }
+
+
 @pytest.mark.docker
-def test_simple():
-    with DockerContainer(docker_image=DEFAULT_IMAGE) as container:
+@pytest.mark.parametrize("container_kwargs", basis_container_kwargs())
+def test_simple(container_kwargs):
+    with DockerContainer(**container_kwargs) as container:
         assert container.call(["echo", "hello"], capture_output=True) == "hello\n"
 
 
 @pytest.mark.docker
-def test_no_lf():
-    with DockerContainer(docker_image=DEFAULT_IMAGE) as container:
+@pytest.mark.parametrize("container_kwargs", basis_container_kwargs())
+def test_no_lf(container_kwargs):
+    with DockerContainer(**container_kwargs) as container:
         assert container.call(["printf", "hello"], capture_output=True) == "hello"
 
 
 @pytest.mark.docker
-def test_environment():
-    with DockerContainer(docker_image=DEFAULT_IMAGE) as container:
+@pytest.mark.parametrize("container_kwargs", basis_container_kwargs())
+def test_environment(container_kwargs):
+    with DockerContainer(**container_kwargs) as container:
         assert (
             container.call(
                 ["sh", "-c", "echo $TEST_VAR"], env={"TEST_VAR": "1"}, capture_output=True
@@ -47,19 +79,19 @@ def test_environment():
 
 
 @pytest.mark.docker
-def test_cwd():
-    with DockerContainer(
-        docker_image=DEFAULT_IMAGE, cwd="/cibuildwheel/working_directory"
-    ) as container:
+@pytest.mark.parametrize("container_kwargs", basis_container_kwargs())
+def test_cwd(container_kwargs):
+    with DockerContainer(cwd="/cibuildwheel/working_directory", **container_kwargs) as container:
         assert container.call(["pwd"], capture_output=True) == "/cibuildwheel/working_directory\n"
         assert container.call(["pwd"], capture_output=True, cwd="/opt") == "/opt\n"
 
 
 @pytest.mark.docker
-def test_container_removed():
-    with DockerContainer(docker_image=DEFAULT_IMAGE) as container:
+@pytest.mark.parametrize("container_kwargs", basis_container_kwargs())
+def test_container_removed(container_kwargs):
+    with DockerContainer(**container_kwargs) as container:
         docker_containers_listing = subprocess.run(
-            "docker container ls",
+            f"{container.oci_exe} container {container._common_args_join} ls",
             shell=True,
             check=True,
             stdout=subprocess.PIPE,
@@ -70,7 +102,7 @@ def test_container_removed():
         old_container_name = container.name
 
     docker_containers_listing = subprocess.run(
-        "docker container ls",
+        f"{container.oci_exe} container {container._common_args_join} ls",
         shell=True,
         check=True,
         stdout=subprocess.PIPE,
@@ -80,7 +112,8 @@ def test_container_removed():
 
 
 @pytest.mark.docker
-def test_large_environment():
+@pytest.mark.parametrize("container_kwargs", basis_container_kwargs())
+def test_large_environment(container_kwargs):
     # max environment variable size is 128kB
     long_env_var_length = 127 * 1024
     large_environment = {
@@ -90,7 +123,7 @@ def test_large_environment():
         "d": "0" * long_env_var_length,
     }
 
-    with DockerContainer(docker_image=DEFAULT_IMAGE) as container:
+    with DockerContainer(**container_kwargs) as container:
         # check the length of d
         assert (
             container.call(["sh", "-c", "echo ${#d}"], env=large_environment, capture_output=True)
@@ -99,8 +132,9 @@ def test_large_environment():
 
 
 @pytest.mark.docker
-def test_binary_output():
-    with DockerContainer(docker_image=DEFAULT_IMAGE) as container:
+@pytest.mark.parametrize("container_kwargs", basis_container_kwargs())
+def test_binary_output(container_kwargs):
+    with DockerContainer(**container_kwargs) as container:
         # note: the below embedded snippets are in python2
 
         # check that we can pass though arbitrary binary data without erroring
@@ -150,8 +184,9 @@ def test_binary_output():
 
 
 @pytest.mark.docker
-def test_file_operations(tmp_path: Path):
-    with DockerContainer(docker_image=DEFAULT_IMAGE) as container:
+@pytest.mark.parametrize("container_kwargs", basis_container_kwargs())
+def test_file_operation(tmp_path: Path, container_kwargs):
+    with DockerContainer(**container_kwargs) as container:
         # test copying a file in
         test_binary_data = bytes(random.randrange(256) for _ in range(1000))
         original_test_file = tmp_path / "test.dat"
@@ -166,8 +201,9 @@ def test_file_operations(tmp_path: Path):
 
 
 @pytest.mark.docker
-def test_dir_operations(tmp_path: Path):
-    with DockerContainer(docker_image=DEFAULT_IMAGE) as container:
+@pytest.mark.parametrize("container_kwargs", basis_container_kwargs())
+def test_dir_operations(tmp_path: Path, container_kwargs):
+    with DockerContainer(**container_kwargs) as container:
         test_binary_data = bytes(random.randrange(256) for _ in range(1000))
         original_test_file = tmp_path / "test.dat"
         original_test_file.write_bytes(test_binary_data)
@@ -196,7 +232,8 @@ def test_dir_operations(tmp_path: Path):
 
 
 @pytest.mark.docker
-def test_environment_executor():
-    with DockerContainer(docker_image=DEFAULT_IMAGE) as container:
+@pytest.mark.parametrize("container_kwargs", basis_container_kwargs())
+def test_environment_executor(container_kwargs):
+    with DockerContainer(**container_kwargs) as container:
         assignment = EnvironmentAssignmentBash("TEST=$(echo 42)")
         assert assignment.evaluated_value({}, container.environment_executor) == "42"
