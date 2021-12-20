@@ -28,6 +28,8 @@ elif pm == "ppc64le":
     DEFAULT_IMAGE = "quay.io/pypa/manylinux2014_ppc64le:2020-05-17-2f8ac3b"
 elif pm == "s390x":
     DEFAULT_IMAGE = "quay.io/pypa/manylinux2014_s390x:2020-05-17-2f8ac3b"
+else:
+    DEFAULT_IMAGE = None
 
 
 def basis_container_kwargs():
