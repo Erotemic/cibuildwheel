@@ -65,7 +65,7 @@ class DockerContainer:
         ...     print(list(dpath_dest.glob("*")))
         >>> assert (dpath_dest / "test_file.txt").read_text() == "content"
         >>> # Test the same process works with podman (might need special args)
-        >>> if shutil.which("podman") == "":
+        >>> if shutil.which("podman"):
         ...     import pytest
         ...     pytest.skip("podman not installed")
         >>> podman_opts = dict(

@@ -34,10 +34,10 @@ def basis_container_kwargs():
     """
     Parametarize different container engine invocations.
     """
-    HAVE_DOCKER = shutil.which("docker") != ""
+    HAVE_DOCKER = bool(shutil.which("docker"))
     if HAVE_DOCKER:
         yield {"oci_exe": "docker", "docker_image": DEFAULT_IMAGE}
-    HAVE_PODMAN = shutil.which("podman") != ""
+    HAVE_PODMAN = bool(shutil.which("podman"))
     if HAVE_PODMAN:
         # Basic podman usage
         yield {"oci_exe": "podman", "docker_image": DEFAULT_IMAGE}
