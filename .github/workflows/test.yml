@@ -40,7 +40,7 @@ jobs:
       with:
         python-version: ${{ matrix.python_version }}
 
-    # Install podman on this CI isntance for podman tests on linux
+    # Install podman on this CI instance for podman tests on linux
     # Snippet from: https://github.com/redhat-actions/podman-login/blob/main/.github/workflows/example.yml
     - name: Install latest podman
       if: runner.os == 'Linux'
