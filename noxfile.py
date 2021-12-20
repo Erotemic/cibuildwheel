@@ -16,7 +16,7 @@ def tests(session: nox.Session) -> None:
     """
     Run the unit and regular tests.
     """
-    unit_test_args = ["--run-docker", "--run-podman"] if sys.platform.startswith("linux") else []
+    unit_test_args = ["--run-docker"] if sys.platform.startswith("linux") else []
     session.install("-e", ".[test]")
     if session.posargs:
         session.run("pytest", *session.posargs)
