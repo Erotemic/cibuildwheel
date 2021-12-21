@@ -50,7 +50,7 @@ class DockerContainer:
         simulate_32_bit: bool = False,
         cwd: Optional[PathOrStr] = None,
         oci_exe: str = "docker",
-        env: Optional[dict] = None,
+        env: Optional[Dict] = None,
     ):
         if not docker_image:
             raise ValueError("Must have a non-empty docker image to run.")
@@ -317,28 +317,22 @@ class DockerContainer:
         # used as an EnvironmentExecutor to evaluate commands and capture output
         return self.call(command, env=environment, capture_output=True)
 
-    def debug_info(self) -> subprocess.CompletedProcess:
+    def debug_info(self) -> str:
         if self.oci_exe == "podman":
-            completed = subprocess.run(
-                f"{self.oci_exe} info --debug",
-                shell=True,
-                check=True,
-                cwd=self.cwd,
-                env=self.env,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-            )
+            command = f"{self.oci_exe} info --debug",
         else:
-            completed = subprocess.run(
-                f"{self.oci_exe} info",
-                shell=True,
-                check=True,
-                cwd=self.cwd,
-                env=self.env,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-            )
-        return completed
+            command = f"{self.oci_exe} info",
+        completed: subprocess.CompletedProcess = subprocess.run(
+            command,
+            shell=True,
+            check=True,
+            cwd=self.cwd,
+            env=self.env,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+        )
+        output = str(completed.stdout, encoding="utf8", errors="surrogateescape")
+        return output
 
 
 def shell_quote(path: PurePath) -> str:

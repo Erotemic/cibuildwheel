@@ -189,7 +189,7 @@ def test_no_lf(container_kwargs):
 @pytest.mark.parametrize("container_kwargs", basis_container_kwargs())
 def test_debug_info(container_kwargs):
     container = DockerContainer(**container_kwargs)
-    print(container.debug_info().stdout.decode("utf8"))
+    print(container.debug_info())
     with container:
         pass
 
