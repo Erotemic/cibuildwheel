@@ -135,7 +135,7 @@ class DockerContainer:
 
         if oci_exe == "podman":
             if not oci_sleep_time:
-                oci_sleep_time = 0.01
+                oci_sleep_time = "0.01"
 
         self._sleep_time = float(oci_sleep_time) if oci_sleep_time else 0.0
 
