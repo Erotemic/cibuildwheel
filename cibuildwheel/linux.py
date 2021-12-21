@@ -344,7 +344,6 @@ def build(options: Options) -> None:
                 oci_extra_args_create=build_opts.oci_extra_args_create,
                 oci_extra_args_common=build_opts.oci_extra_args_common,
                 oci_extra_args_start=build_opts.oci_extra_args_start,
-                oci_sleep_time=build_opts.oci_sleep_time,
             ) as docker:
 
                 build_on_docker(

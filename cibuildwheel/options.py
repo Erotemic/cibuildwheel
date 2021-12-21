@@ -76,7 +76,6 @@ class BuildOptions(NamedTuple):
     oci_extra_args_create: str
     oci_extra_args_common: str
     oci_extra_args_start: str
-    oci_sleep_time: str
 
     @property
     def package_dir(self) -> Path:
@@ -429,7 +428,6 @@ class Options:
                 oci_extra_args_common=self.reader.get("oci-extra-args-common"),
                 oci_extra_args_create=self.reader.get("oci-extra-args-create"),
                 oci_extra_args_start=self.reader.get("oci-extra-args-start"),
-                oci_sleep_time=self.reader.get("oci-sleep-time"),
             )
 
             build_frontend: BuildFrontend

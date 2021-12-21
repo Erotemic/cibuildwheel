@@ -28,69 +28,13 @@ class DockerContainer:
               podman?
 
     Example:
-        >>> # TODO: port complex part of tests to ~/code/cibuildwheel/unit_test/docker_container_test.py
-        >>> # keep a minimal working doctest for an example
         >>> from cibuildwheel.docker_container import *  # NOQA
-        >>> import tempfile
-        >>> import shutil
         >>> docker_image = "quay.io/pypa/manylinux2014_x86_64:2020-05-17-2f8ac3b"
-        >>> # Create a test dir to copy into / out of the the container
-        >>> temp_root = tempfile.TemporaryDirectory()
-        >>> root_dpath = pathlib.Path(temp_root.name)
-        >>> test_dpath = root_dpath / "test_dir"
-        >>> test_dpath.mkdir(exist_ok=True, parents=True)
-        >>> test_fpath = test_dpath / "test_file.txt"
-        >>> with open(test_fpath, "w") as file:
-        ...     file.write("content")
-        >>> dpath_dest = root_dpath / "test_dir_dest_docker"
-        >>> dpath_dest.mkdir()
-        >>> fpath_dest = root_dpath / "test_file_dest_docker.txt"
-        >>> container_dpath = pathlib.Path("/internal-dpath")
-        >>> container_fpath = pathlib.Path("/internal-fpath.txt")
         >>> # Test the default container
         >>> with DockerContainer(docker_image=docker_image) as self:
         ...     self.call(["echo", "hello world"])
         ...     self.call(["cat", "/proc/1/cgroup"])
         ...     print(self.get_environment())
-        ...     # Test round trip of file copy
-        ...     self.copy_into(test_dpath, container_dpath)
-        ...     self.copy_into(test_fpath, container_fpath)
-        ...     content = self.glob(pathlib.Path("/"), "*")
-        ...     # Verify files copied in correctly
-        ...     assert container_dpath in content
-        ...     assert container_fpath in content
-        ...     # can only copy out directories to a tar file
-        ...     self.copy_out(container_dpath, dpath_dest)
-        ...     print(list(dpath_dest.glob("*")))
-        >>> assert (dpath_dest / "test_file.txt").read_text() == "content"
-        >>> # Test the same process works with podman (might need special args)
-        >>> if shutil.which("podman"):
-        ...     import pytest
-        ...     pytest.skip("podman not installed")
-        >>> podman_opts = dict(
-        ...     oci_extra_args_common=f"--cgroup-manager=cgroupfs --storage-driver=vfs --root={root_dpath}/.local/share/containers/vfs-storage",
-        ...     oci_extra_args_create="--events-backend=file --privileged",
-        ...     oci_extra_args_start="--events-backend=file --cgroup-manager=cgroupfs --storage-driver=vfs",
-        ... )
-        >>> shutil.rmtree(dpath_dest)
-        >>> dpath_dest.mkdir()
-        >>> with DockerContainer(docker_image=docker_image, oci_exe="podman", **podman_opts) as self:
-        ...     self.call(["echo", "hello world"])
-        ...     self.call(["cat", "/proc/1/cgroup"])
-        ...     print(self.get_environment())
-        ...     # Test round trip of file copy
-        ...     self.copy_into(test_dpath, container_dpath)
-        ...     self.copy_into(test_fpath, container_fpath)
-        ...     content = self.glob(pathlib.Path("/"), "*")
-        ...     # Verify files copied in correctly
-        ...     assert container_dpath in content
-        ...     assert container_fpath in content
-        ...     # can only copy out directories to a tar file
-        ...     self.copy_out(container_dpath, dpath_dest)
-        ...     print(list(dpath_dest.glob("*")))
-        ...     print([expected_output_fpath])
-        ...     assert expected_output_fpath.exists()
-        >>> assert (dpath_dest / "test_file.txt").read_text() == "content"
     """
 
     UTILITY_PYTHON = "/opt/python/cp38-cp38/bin/python"
@@ -109,7 +53,6 @@ class DockerContainer:
         oci_extra_args_create: str = "",
         oci_extra_args_common: str = "",
         oci_extra_args_start: str = "",
-        oci_sleep_time: str = "",
     ):
         if not docker_image:
             raise ValueError("Must have a non-empty docker image to run.")
@@ -131,11 +74,6 @@ class DockerContainer:
         self._start_args: List[str] = shlex.split(self.oci_extra_args_start)
         self._create_args: List[str] = shlex.split(self.oci_extra_args_create)
         self._common_args_join: str = " ".join(self._common_args)
-
-        # if oci_exe == "podman":
-        #     if not oci_sleep_time:
-        #         oci_sleep_time = "0.01"
-        # self._sleep_time = float(oci_sleep_time) if oci_sleep_time else 0.0
 
     def __enter__(self) -> "DockerContainer":
 
@@ -200,15 +138,7 @@ class DockerContainer:
 
         self.bash_stdin.close()
 
-        # if self._sleep_time:
-        #     time.sleep(self._sleep_time)
-
         self.process.wait()
-
-        # When using podman there seems to be some race condition. Give it a
-        # bit of extra time.
-        # if self._sleep_time:
-        #     time.sleep(self._sleep_time)
 
         assert isinstance(self.name, str)
 
