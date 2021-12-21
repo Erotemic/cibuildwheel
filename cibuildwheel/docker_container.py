@@ -319,23 +319,26 @@ class DockerContainer:
 
     def debug_info(self):
         if self.oci_exe == "podman":
-            return subprocess.run(
+            completed = subprocess.run(
                 f"{self.oci_exe} info --debug",
                 shell=True,
                 check=True,
                 cwd=self.cwd,
                 env=self.env,
-                capture_output=True,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
             )
         else:
-            return subprocess.run(
+            completed = subprocess.run(
                 f"{self.oci_exe} info",
                 shell=True,
                 check=True,
                 cwd=self.cwd,
                 env=self.env,
-                capture_output=True,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
             )
+        return completed
 
 
 def shell_quote(path: PurePath) -> str:
