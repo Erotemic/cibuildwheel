@@ -205,7 +205,6 @@ class DockerContainer:
         if self._sleep_time:
             time.sleep(self._sleep_time)
 
-        self.process.terminate()
         self.process.wait()
 
         # When using podman there seems to be some race condition. Give it a
