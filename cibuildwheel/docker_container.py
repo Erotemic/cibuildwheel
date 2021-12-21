@@ -4,7 +4,6 @@ import os
 import shlex
 import subprocess
 import sys
-import time
 import uuid
 from pathlib import Path, PurePath
 from types import TracebackType
