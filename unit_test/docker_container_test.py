@@ -18,7 +18,7 @@ import textwrap
 from pathlib import Path, PurePath
 
 import pytest
-import toml
+import toml  # type: ignore
 
 from cibuildwheel.docker_container import DockerContainer
 from cibuildwheel.environment import EnvironmentAssignmentBash
