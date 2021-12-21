@@ -4,6 +4,7 @@ import os
 import shlex
 import subprocess
 import sys
+import time
 import uuid
 from pathlib import Path, PurePath
 from types import TracebackType
@@ -199,16 +200,23 @@ class DockerContainer:
 
         self.bash_stdin.close()
 
+        if self._sleep_time:
+            time.sleep(self._sleep_time)
+
+        self.process.terminate()
+        self.process.wait()
+
+        # When using podman there seems to be some race condition. Give it a
+        # bit of extra time.
+        if self._sleep_time:
+            time.sleep(self._sleep_time)
+
         assert isinstance(self.name, str)
 
         subprocess.run(
             [self.oci_exe, "rm"] + self._common_args + ["--force", "-v", self.name],
             stdout=subprocess.DEVNULL,
         )
-
-        self.process.terminate()
-        self.process.wait()
-
         self.name = None
 
     def copy_into(self, from_path: Path, to_path: PurePath) -> None:
