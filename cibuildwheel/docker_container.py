@@ -319,9 +319,9 @@ class DockerContainer:
 
     def debug_info(self) -> str:
         if self.oci_exe == "podman":
-            command = f"{self.oci_exe} info --debug",
+            command = (f"{self.oci_exe} info --debug",)
         else:
-            command = f"{self.oci_exe} info",
+            command = (f"{self.oci_exe} info",)
         completed: subprocess.CompletedProcess = subprocess.run(
             command,
             shell=True,
