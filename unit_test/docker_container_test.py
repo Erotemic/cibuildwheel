@@ -1,16 +1,22 @@
 """
 Invocation:
     pytest unit_test/docker_container_test.py --run-docker -v -s
+    pytest unit_test/docker_container_test.py --run-docker -v -s -k "test_debug_info"
     pytest unit_test/docker_container_test.py --run-docker -v -s -k "test_file_operations"
     pytest unit_test/docker_container_test.py --run-docker -v -s -k "test_no_lf"
     pytest unit_test/docker_container_test.py --run-docker -v -s -k "test_simple"
+    pytest unit_test/docker_container_test.py --run-docker -v -s -k "test_container_removed"
 """
+import atexit
 import platform
 import random
 import shutil
 import subprocess
 import textwrap
+import os
 from pathlib import Path, PurePath
+import tempfile
+import toml
 
 import pytest
 
@@ -32,10 +38,58 @@ else:
     DEFAULT_IMAGE = ""
 
 
+temp_test_dir = None
+
+
+@atexit.register
+def _cleanup_tempdir():
+    """
+    Not sure how to get pytest to handle this cleanly.
+    Podman doesnt give the user write permissions by default for new
+    directories. So we have to chown before we can delete the temp dir.
+    """
+    import stat
+    global temp_test_dir
+    if temp_test_dir is not None:
+        print('CLEANUP temp_test_dir = {!r}'.format(temp_test_dir))
+        for r, ds, fs in os.walk(temp_test_dir.name):
+            for d in ds:
+                dpath = os.path.join(r, d)
+                if not os.path.islink(dpath):
+                    perms = os.lstat(dpath).st_mode
+                    try:
+                        os.chmod(dpath, stat.S_IWUSR | perms)
+                    except Exception as ex:
+                        print('issue with dpath = {!r}, {!r}'.format(dpath, ex))
+
+            for f in fs:
+                fpath = os.path.join(r, f)
+                if not os.path.islink(fpath):
+                    perms = os.lstat(fpath).st_mode
+                    try:
+                        os.chmod(fpath, stat.S_IWUSR | perms)
+                    except Exception as ex:
+                        print('issue with fpath = {!r}, {!r}'.format(fpath, ex))
+                    else:
+                        os.unlink(fpath)
+        try:
+            temp_test_dir.cleanup()
+        except Exception as ex:
+            print('Issue cleaning up ex = {!r}'.format(ex))
+    temp_test_dir = None
+
+
 def basis_container_kwargs():
     """
     Parametarize different container engine invocations.
     """
+
+    global temp_test_dir
+    if temp_test_dir is None:
+        # Only setup the temp directory once for all tests
+        temp_test_dir = tempfile.TemporaryDirectory(prefix='cibw_test_')
+        # print("SETUP temp_test_dir = {!r}".format(temp_test_dir))
+
     HAVE_DOCKER = bool(shutil.which("docker"))
     if HAVE_DOCKER:
         yield {"oci_exe": "docker", "docker_image": DEFAULT_IMAGE}
@@ -43,14 +97,75 @@ def basis_container_kwargs():
     if HAVE_PODMAN:
         # Basic podman usage
         yield {"oci_exe": "podman", "docker_image": DEFAULT_IMAGE}
+
         # VFS Podman usage (for the podman in docker use-case)
-        home = str(Path.home())
+        dpath = Path(temp_test_dir.name)
+
+        # This requires that we write configuration files and point to them
+        # with enviornment variables before we run docker
+        # https://github.com/containers/common/blob/main/docs/containers.conf.5.md
+        vfs_containers_conf_data = {
+            "containers": {
+                "default_capabilities": [
+                    "CHOWN",
+                    "DAC_OVERRIDE",
+                    "FOWNER",
+                    "FSETID",
+                    "KILL",
+                    "NET_BIND_SERVICE",
+                    "SETFCAP",
+                    "SETGID",
+                    "SETPCAP",
+                    "SETUID",
+                    "SYS_CHROOT",
+                ]
+            },
+            "engine": {"cgroup_manager": "cgroupfs", "events_logger": "file"},
+        }
+        # https://github.com/containers/storage/blob/main/docs/containers-storage.conf.5.md
+        storage_root = dpath / ".local/share/containers/vfs-storage"
+        run_root = dpath / ".local/share/containers/vfs-runroot"
+        storage_root.mkdir(parents=True, exist_ok=True)
+        run_root.mkdir(parents=True, exist_ok=True)
+        vfs_containers_storage_conf_data = {
+            "storage": {
+                "driver": "vfs",
+                "graphroot": str(storage_root),
+                "runroot": str(run_root),
+                "rootless_storage_path": str(storage_root),
+                "options": {
+                    # "remap-user": "containers",
+                    "aufs": {"mountopt": "rw"},
+                    "overlay": {"mountopt": "rw", "force_mask": 'shared'},
+
+                    # "vfs": {"ignore_chown_errors": "true"},
+                },
+            }
+        }
+        vfs_containers_conf_fpath = dpath / "temp_vfs_containers.conf"
+        vfs_containers_storage_conf_fpath = dpath / "temp_vfs_containers_storage.conf"
+        with open(vfs_containers_conf_fpath, "w") as file:
+            toml.dump(vfs_containers_conf_data, file)
+
+        with open(vfs_containers_storage_conf_fpath, "w") as file:
+            toml.dump(vfs_containers_storage_conf_data, file)
+
+        # DEBUG:
+        # print("----")
+        # print(vfs_containers_conf_fpath.read_text())
+        # print(vfs_containers_storage_conf_fpath.read_text())
+        # print("----")
+
+        oci_environ = os.environ.copy()
+        oci_environ.update({
+            "CONTAINERS_CONF": str(vfs_containers_conf_fpath),
+            "CONTAINERS_STORAGE_CONF": str(vfs_containers_storage_conf_fpath),
+        })
+
         yield {
             "oci_exe": "podman",
-            "oci_extra_args_common": f"--cgroup-manager=cgroupfs --storage-driver=vfs --root={home}/.local/share/containers/vfs-storage",
-            "oci_extra_args_create": "--events-backend=file --privileged",
-            "oci_extra_args_start": "--events-backend=file --cgroup-manager=cgroupfs --storage-driver=vfs",
             "docker_image": DEFAULT_IMAGE,
+            "env": oci_environ,
         }
 
 
@@ -66,6 +181,15 @@ def test_simple(container_kwargs):
 def test_no_lf(container_kwargs):
     with DockerContainer(**container_kwargs) as container:
         assert container.call(["printf", "hello"], capture_output=True) == "hello"
+
+
+@pytest.mark.docker
+@pytest.mark.parametrize("container_kwargs", basis_container_kwargs())
+def test_debug_info(container_kwargs):
+    container = DockerContainer(**container_kwargs)
+    print(container.debug_info().stdout.decode("utf8"))
+    with container:
+        pass
 
 
 @pytest.mark.docker
@@ -93,22 +217,24 @@ def test_cwd(container_kwargs):
 def test_container_removed(container_kwargs):
     with DockerContainer(**container_kwargs) as container:
         docker_containers_listing = subprocess.run(
-            f"{container.oci_exe} container {container._common_args_join} ls",
+            f"{container.oci_exe} container ls",
             shell=True,
             check=True,
             stdout=subprocess.PIPE,
             universal_newlines=True,
+            env=container.env,
         ).stdout
         assert container.name is not None
         assert container.name in docker_containers_listing
         old_container_name = container.name
 
     docker_containers_listing = subprocess.run(
-        f"{container.oci_exe} container {container._common_args_join} ls",
+        f"{container.oci_exe} container ls",
         shell=True,
         check=True,
         stdout=subprocess.PIPE,
         universal_newlines=True,
+        env=container.env,
     ).stdout
     assert old_container_name not in docker_containers_listing
 

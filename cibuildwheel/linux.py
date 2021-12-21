@@ -341,9 +341,6 @@ def build(options: Options) -> None:
                 simulate_32_bit=build_step.platform_tag.endswith("i686"),
                 cwd=container_project_path,
                 oci_exe=build_opts.oci_exe,
-                oci_extra_args_create=build_opts.oci_extra_args_create,
-                oci_extra_args_common=build_opts.oci_extra_args_common,
-                oci_extra_args_start=build_opts.oci_extra_args_start,
             ) as docker:
 
                 build_on_docker(

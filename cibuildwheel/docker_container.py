@@ -50,9 +50,7 @@ class DockerContainer:
         simulate_32_bit: bool = False,
         cwd: Optional[PathOrStr] = None,
         oci_exe: str = "docker",
-        oci_extra_args_create: str = "",
-        oci_extra_args_common: str = "",
-        oci_extra_args_start: str = "",
+        env : Optional[dict] = None,
     ):
         if not docker_image:
             raise ValueError("Must have a non-empty docker image to run.")
@@ -61,19 +59,8 @@ class DockerContainer:
         self.simulate_32_bit = simulate_32_bit
         self.cwd = cwd
         self.name: Optional[str] = None
-
         self.oci_exe = oci_exe
-
-        # Extra user specified arguments
-        self.oci_extra_args_create = oci_extra_args_create
-        self.oci_extra_args_common = oci_extra_args_common
-        self.oci_extra_args_start = oci_extra_args_start
-
-        # For internal use
-        self._common_args: List[str] = shlex.split(self.oci_extra_args_common)
-        self._start_args: List[str] = shlex.split(self.oci_extra_args_start)
-        self._create_args: List[str] = shlex.split(self.oci_extra_args_create)
-        self._common_args_join: str = " ".join(self._common_args)
+        self.env = env  # If specified, overwrite environment variables
 
     def __enter__(self) -> "DockerContainer":
 
@@ -87,31 +74,26 @@ class DockerContainer:
                 "--env=CIBUILDWHEEL",
                 f"--name={self.name}",
                 "--interactive",
-            ]
-            + self._create_args
-            + self._common_args
-            + [
                 # Z-flags is for SELinux
                 "--volume=/:/host:Z",  # ignored on CircleCI
                 self.docker_image,
                 *shell_args,
             ],
+            env=self.env,
             check=True,
         )
+
         self.process = subprocess.Popen(
             [
                 self.oci_exe,
                 "start",
                 "--attach",
                 "--interactive",
-            ]
-            + self._start_args
-            + self._common_args
-            + [
                 self.name,
             ],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
+            env=self.env,
         )
 
         assert self.process.stdin and self.process.stdout
@@ -143,8 +125,9 @@ class DockerContainer:
         assert isinstance(self.name, str)
 
         subprocess.run(
-            [self.oci_exe, "rm"] + self._common_args + ["--force", "-v", self.name],
+            [self.oci_exe, "rm", "--force", "-v", self.name],
             stdout=subprocess.DEVNULL,
+            env=self.env,
         )
         self.name = None
 
@@ -161,16 +144,18 @@ class DockerContainer:
             # This is important if the oci images themselves are in the
             # repo directory we are copying into the container.
             subprocess.run(
-                f"tar  cf - . | {self.oci_exe} exec {self._common_args_join} -i {self.name} tar -xC {shell_quote(to_path)} -f -",
+                f"tar  cf - . | {self.oci_exe} exec -i {self.name} tar -xC {shell_quote(to_path)} -f -",
                 shell=True,
                 check=True,
                 cwd=from_path,
+                env=self.env,
             )
         else:
             subprocess.run(
-                f'cat {shell_quote(from_path)} | {self.oci_exe} exec {self._common_args_join} -i {self.name} sh -c "cat > {shell_quote(to_path)}"',
+                f'cat {shell_quote(from_path)} | {self.oci_exe} exec -i {self.name} sh -c "cat > {shell_quote(to_path)}"',
                 shell=True,
                 check=True,
+                env=self.env,
             )
 
     def copy_out(self, from_path: PurePath, to_path: Path) -> None:
@@ -178,20 +163,22 @@ class DockerContainer:
         to_path.mkdir(parents=True, exist_ok=True)
 
         if self.oci_exe == "podman":
-            command = f"{self.oci_exe} exec {self._common_args_join} -i {self.name} tar -cC {shell_quote(from_path)} -f /tmp/output-{self.name}.tar ."
+            command = f"{self.oci_exe} exec -i {self.name} tar -cC {shell_quote(from_path)} -f /tmp/output-{self.name}.tar ."
             subprocess.run(
                 command,
                 shell=True,
                 check=True,
                 cwd=to_path,
+                env=self.env,
             )
 
-            command = f"{self.oci_exe} cp {self._common_args_join} {self.name}:/tmp/output-{self.name}.tar output-{self.name}.tar"
+            command = f"{self.oci_exe} cp {self.name}:/tmp/output-{self.name}.tar output-{self.name}.tar"
             subprocess.run(
                 command,
                 shell=True,
                 check=True,
                 cwd=to_path,
+                env=self.env,
             )
             command = f"tar -xvf output-{self.name}.tar"
             subprocess.run(
@@ -199,15 +186,17 @@ class DockerContainer:
                 shell=True,
                 check=True,
                 cwd=to_path,
+                env=self.env,
             )
             os.unlink(to_path / f"output-{self.name}.tar")
         elif self.oci_exe == "docker":
-            command = f"{self.oci_exe} exec {self._common_args_join} -i {self.name} tar -cC {shell_quote(from_path)} -f - . | tar -xf -"
+            command = f"{self.oci_exe} exec -i {self.name} tar -cC {shell_quote(from_path)} -f - . | tar -xf -"
             subprocess.run(
                 command,
                 shell=True,
                 check=True,
                 cwd=to_path,
+                env=self.env,
             )
         else:
             raise KeyError(self.oci_exe)
@@ -325,6 +314,19 @@ class DockerContainer:
     def environment_executor(self, command: List[str], environment: Dict[str, str]) -> str:
         # used as an EnvironmentExecutor to evaluate commands and capture output
         return self.call(command, env=environment, capture_output=True)
+
+    def debug_info(self):
+        if self.oci_exe == 'podman':
+            return subprocess.run(
+                f"{self.oci_exe} info --debug", shell=True, check=True,
+                cwd=self.cwd, env=self.env, capture_output=True)
+        else:
+            return subprocess.run(
+                f"{self.oci_exe} info", shell=True, check=True,
+                cwd=self.cwd, env=self.env, capture_output=True)
+
+
+
 
 
 def shell_quote(path: PurePath) -> str:
