@@ -96,6 +96,7 @@ def basis_container_kwargs():
     HAVE_PODMAN = bool(shutil.which("podman"))
     if HAVE_PODMAN:
         import toml
+
         # Basic podman usage
         yield {"oci_exe": "podman", "docker_image": DEFAULT_IMAGE}
 
