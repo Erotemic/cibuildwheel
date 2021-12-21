@@ -15,7 +15,7 @@ import shutil
 import subprocess
 import tempfile
 import textwrap
-import tomli
+import toml
 from pathlib import Path, PurePath
 
 import pytest
@@ -145,10 +145,10 @@ def basis_container_kwargs():
         vfs_containers_conf_fpath = dpath / "temp_vfs_containers.conf"
         vfs_containers_storage_conf_fpath = dpath / "temp_vfs_containers_storage.conf"
         with open(vfs_containers_conf_fpath, "w") as file:
-            tomli.dump(vfs_containers_conf_data, file)
+            toml.dump(vfs_containers_conf_data, file)
 
         with open(vfs_containers_storage_conf_fpath, "w") as file:
-            tomli.dump(vfs_containers_storage_conf_data, file)
+            toml.dump(vfs_containers_storage_conf_data, file)
 
         # DEBUG:
         # print("----")

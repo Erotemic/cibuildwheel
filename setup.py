@@ -12,7 +12,7 @@ extras = {
         "pytest>=6",
         "pytest-timeout",
         "pytest-xdist; sys_platform == 'linux'",
-        "tomli",
+        "toml",
     ],
     "bin": [
         "click",
