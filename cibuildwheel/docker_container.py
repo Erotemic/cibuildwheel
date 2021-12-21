@@ -50,7 +50,7 @@ class DockerContainer:
         simulate_32_bit: bool = False,
         cwd: Optional[PathOrStr] = None,
         oci_exe: str = "docker",
-        env: Optional[Dict] = None,
+        env: Optional[Dict[str, str]] = None,
     ):
         if not docker_image:
             raise ValueError("Must have a non-empty docker image to run.")
@@ -319,10 +319,10 @@ class DockerContainer:
 
     def debug_info(self) -> str:
         if self.oci_exe == "podman":
-            command = (f"{self.oci_exe} info --debug",)
+            command = f"{self.oci_exe} info --debug"
         else:
-            command = (f"{self.oci_exe} info",)
-        completed: subprocess.CompletedProcess = subprocess.run(
+            command = f"{self.oci_exe} info"
+        completed = subprocess.run(
             command,
             shell=True,
             check=True,
