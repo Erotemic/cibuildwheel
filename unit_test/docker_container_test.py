@@ -45,7 +45,7 @@ temp_test_dir = None
 def _cleanup_tempdir():
     """
     Not sure how to get pytest to handle this cleanly.
-    Podman doesnt give the user write permissions by default for new
+    Podman doesn't give the user write permissions by default for new
     directories. So we have to chown before we can delete the temp dir.
     """
     import stat
@@ -103,7 +103,7 @@ def basis_container_kwargs():
         dpath = Path(temp_test_dir.name)
 
         # This requires that we write configuration files and point to them
-        # with enviornment variables before we run docker
+        # with environment variables before we run docker
         # https://github.com/containers/common/blob/main/docs/containers.conf.5.md
         vfs_containers_conf_data = {
             "containers": {
