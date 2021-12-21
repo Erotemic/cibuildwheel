@@ -18,7 +18,6 @@ import textwrap
 from pathlib import Path, PurePath
 
 import pytest
-import toml
 
 from cibuildwheel.docker_container import DockerContainer
 from cibuildwheel.environment import EnvironmentAssignmentBash
@@ -96,6 +95,7 @@ def basis_container_kwargs():
         yield {"oci_exe": "docker", "docker_image": DEFAULT_IMAGE}
     HAVE_PODMAN = bool(shutil.which("podman"))
     if HAVE_PODMAN:
+        import toml
         # Basic podman usage
         yield {"oci_exe": "podman", "docker_image": DEFAULT_IMAGE}
 
