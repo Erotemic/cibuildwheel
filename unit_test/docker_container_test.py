@@ -8,17 +8,17 @@ Invocation:
     pytest unit_test/docker_container_test.py --run-docker -v -s -k "test_container_removed"
 """
 import atexit
+import os
 import platform
 import random
 import shutil
 import subprocess
-import textwrap
-import os
-from pathlib import Path, PurePath
 import tempfile
-import toml
+import textwrap
+from pathlib import Path, PurePath
 
 import pytest
+import toml
 
 from cibuildwheel.docker_container import DockerContainer
 from cibuildwheel.environment import EnvironmentAssignmentBash
@@ -49,9 +49,10 @@ def _cleanup_tempdir():
     directories. So we have to chown before we can delete the temp dir.
     """
     import stat
+
     global temp_test_dir
     if temp_test_dir is not None:
-        print('CLEANUP temp_test_dir = {!r}'.format(temp_test_dir))
+        print(f"CLEANUP temp_test_dir = {temp_test_dir!r}")
         for r, ds, fs in os.walk(temp_test_dir.name):
             for d in ds:
                 dpath = os.path.join(r, d)
@@ -60,7 +61,7 @@ def _cleanup_tempdir():
                     try:
                         os.chmod(dpath, stat.S_IWUSR | perms)
                     except Exception as ex:
-                        print('issue with dpath = {!r}, {!r}'.format(dpath, ex))
+                        print(f"issue with dpath = {dpath!r}, {ex!r}")
 
             for f in fs:
                 fpath = os.path.join(r, f)
@@ -69,13 +70,13 @@ def _cleanup_tempdir():
                     try:
                         os.chmod(fpath, stat.S_IWUSR | perms)
                     except Exception as ex:
-                        print('issue with fpath = {!r}, {!r}'.format(fpath, ex))
+                        print(f"issue with fpath = {fpath!r}, {ex!r}")
                     else:
                         os.unlink(fpath)
         try:
             temp_test_dir.cleanup()
         except Exception as ex:
-            print('Issue cleaning up ex = {!r}'.format(ex))
+            print(f"Issue cleaning up ex = {ex!r}")
     temp_test_dir = None
 
 
@@ -87,7 +88,7 @@ def basis_container_kwargs():
     global temp_test_dir
     if temp_test_dir is None:
         # Only setup the temp directory once for all tests
-        temp_test_dir = tempfile.TemporaryDirectory(prefix='cibw_test_')
+        temp_test_dir = tempfile.TemporaryDirectory(prefix="cibw_test_")
         # print("SETUP temp_test_dir = {!r}".format(temp_test_dir))
 
     HAVE_DOCKER = bool(shutil.which("docker"))
@@ -136,8 +137,7 @@ def basis_container_kwargs():
                 "options": {
                     # "remap-user": "containers",
                     "aufs": {"mountopt": "rw"},
-                    "overlay": {"mountopt": "rw", "force_mask": 'shared'},
-
+                    "overlay": {"mountopt": "rw", "force_mask": "shared"},
                     # "vfs": {"ignore_chown_errors": "true"},
                 },
             }
@@ -157,10 +157,12 @@ def basis_container_kwargs():
         # print("----")
 
         oci_environ = os.environ.copy()
-        oci_environ.update({
-            "CONTAINERS_CONF": str(vfs_containers_conf_fpath),
-            "CONTAINERS_STORAGE_CONF": str(vfs_containers_storage_conf_fpath),
-        })
+        oci_environ.update(
+            {
+                "CONTAINERS_CONF": str(vfs_containers_conf_fpath),
+                "CONTAINERS_STORAGE_CONF": str(vfs_containers_storage_conf_fpath),
+            }
+        )
 
         yield {
             "oci_exe": "podman",

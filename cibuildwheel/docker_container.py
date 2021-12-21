@@ -50,7 +50,7 @@ class DockerContainer:
         simulate_32_bit: bool = False,
         cwd: Optional[PathOrStr] = None,
         oci_exe: str = "docker",
-        env : Optional[dict] = None,
+        env: Optional[dict] = None,
     ):
         if not docker_image:
             raise ValueError("Must have a non-empty docker image to run.")
@@ -172,7 +172,9 @@ class DockerContainer:
                 env=self.env,
             )
 
-            command = f"{self.oci_exe} cp {self.name}:/tmp/output-{self.name}.tar output-{self.name}.tar"
+            command = (
+                f"{self.oci_exe} cp {self.name}:/tmp/output-{self.name}.tar output-{self.name}.tar"
+            )
             subprocess.run(
                 command,
                 shell=True,
@@ -316,17 +318,24 @@ class DockerContainer:
         return self.call(command, env=environment, capture_output=True)
 
     def debug_info(self):
-        if self.oci_exe == 'podman':
+        if self.oci_exe == "podman":
             return subprocess.run(
-                f"{self.oci_exe} info --debug", shell=True, check=True,
-                cwd=self.cwd, env=self.env, capture_output=True)
+                f"{self.oci_exe} info --debug",
+                shell=True,
+                check=True,
+                cwd=self.cwd,
+                env=self.env,
+                capture_output=True,
+            )
         else:
             return subprocess.run(
-                f"{self.oci_exe} info", shell=True, check=True,
-                cwd=self.cwd, env=self.env, capture_output=True)
-
-
-
+                f"{self.oci_exe} info",
+                shell=True,
+                check=True,
+                cwd=self.cwd,
+                env=self.env,
+                capture_output=True,
+            )
 
 
 def shell_quote(path: PurePath) -> str:
