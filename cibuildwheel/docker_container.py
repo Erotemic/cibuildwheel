@@ -317,7 +317,7 @@ class DockerContainer:
         # used as an EnvironmentExecutor to evaluate commands and capture output
         return self.call(command, env=environment, capture_output=True)
 
-    def debug_info(self):
+    def debug_info(self) -> subprocess.CompletedProcess:
         if self.oci_exe == "podman":
             completed = subprocess.run(
                 f"{self.oci_exe} info --debug",
