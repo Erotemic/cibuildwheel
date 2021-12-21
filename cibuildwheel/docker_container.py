@@ -133,11 +133,10 @@ class DockerContainer:
         self._create_args: List[str] = shlex.split(self.oci_extra_args_create)
         self._common_args_join: str = " ".join(self._common_args)
 
-        if oci_exe == "podman":
-            if not oci_sleep_time:
-                oci_sleep_time = "0.01"
-
-        self._sleep_time = float(oci_sleep_time) if oci_sleep_time else 0.0
+        # if oci_exe == "podman":
+        #     if not oci_sleep_time:
+        #         oci_sleep_time = "0.01"
+        # self._sleep_time = float(oci_sleep_time) if oci_sleep_time else 0.0
 
     def __enter__(self) -> "DockerContainer":
 
@@ -202,15 +201,15 @@ class DockerContainer:
 
         self.bash_stdin.close()
 
-        if self._sleep_time:
-            time.sleep(self._sleep_time)
+        # if self._sleep_time:
+        #     time.sleep(self._sleep_time)
 
         self.process.wait()
 
         # When using podman there seems to be some race condition. Give it a
         # bit of extra time.
-        if self._sleep_time:
-            time.sleep(self._sleep_time)
+        # if self._sleep_time:
+        #     time.sleep(self._sleep_time)
 
         assert isinstance(self.name, str)
 
