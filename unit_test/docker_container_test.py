@@ -15,6 +15,7 @@ import shutil
 import subprocess
 import tempfile
 import textwrap
+import tomli
 from pathlib import Path, PurePath
 
 import pytest
@@ -95,7 +96,6 @@ def basis_container_kwargs():
         yield {"oci_exe": "docker", "docker_image": DEFAULT_IMAGE}
     HAVE_PODMAN = bool(shutil.which("podman"))
     if HAVE_PODMAN:
-        import toml
         # Basic podman usage
         yield {"oci_exe": "podman", "docker_image": DEFAULT_IMAGE}
 
@@ -145,10 +145,10 @@ def basis_container_kwargs():
         vfs_containers_conf_fpath = dpath / "temp_vfs_containers.conf"
         vfs_containers_storage_conf_fpath = dpath / "temp_vfs_containers_storage.conf"
         with open(vfs_containers_conf_fpath, "w") as file:
-            toml.dump(vfs_containers_conf_data, file)
+            tomli.dump(vfs_containers_conf_data, file)
 
         with open(vfs_containers_storage_conf_fpath, "w") as file:
-            toml.dump(vfs_containers_storage_conf_data, file)
+            tomli.dump(vfs_containers_storage_conf_data, file)
 
         # DEBUG:
         # print("----")

@@ -144,7 +144,7 @@ class DockerContainer:
             # This is important if the oci images themselves are in the
             # repo directory we are copying into the container.
             subprocess.run(
-                f"tar  cf - . | {self.oci_exe} exec -i {self.name} tar -xC {shell_quote(to_path)} -f -",
+                f"tar cf - . | {self.oci_exe} exec -i {self.name} tar -xC {shell_quote(to_path)} -f -",
                 shell=True,
                 check=True,
                 cwd=from_path,
