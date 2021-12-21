@@ -15,10 +15,10 @@ import shutil
 import subprocess
 import tempfile
 import textwrap
-import tomli
 from pathlib import Path, PurePath
 
 import pytest
+import tomli
 
 from cibuildwheel.docker_container import DockerContainer
 from cibuildwheel.environment import EnvironmentAssignmentBash
