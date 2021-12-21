@@ -137,7 +137,7 @@ class DockerContainer:
             if not oci_sleep_time:
                 oci_sleep_time = 0.01
 
-        self._sleep_time = float(oci_sleep_time)
+        self._sleep_time = float(oci_sleep_time) if oci_sleep_time else 0.0
 
     def __enter__(self) -> "DockerContainer":
 
