@@ -110,6 +110,7 @@ class DockerContainer:
         oci_extra_args_create: str = "",
         oci_extra_args_common: str = "",
         oci_extra_args_start: str = "",
+        oci_sleep_time: str = "",
     ):
         if not docker_image:
             raise ValueError("Must have a non-empty docker image to run.")
@@ -133,9 +134,10 @@ class DockerContainer:
         self._common_args_join: str = " ".join(self._common_args)
 
         if oci_exe == "podman":
-            self._sleep_time = 0.01
-        else:
-            self._sleep_time = 0.0
+            if not oci_sleep_time:
+                oci_sleep_time = 0.01
+
+        self._sleep_time = float(oci_sleep_time)
 
     def __enter__(self) -> "DockerContainer":
 
