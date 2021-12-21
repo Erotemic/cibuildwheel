@@ -44,7 +44,7 @@ def basis_container_kwargs():
         # Basic podman usage
         yield {"oci_exe": "podman", "docker_image": DEFAULT_IMAGE}
         # VFS Podman usage (for the podman in docker use-case)
-        home = str(Path("~").expanduser())
+        home = str(Path.home())
         yield {
             "oci_exe": "podman",
             "oci_extra_args_common": f"--cgroup-manager=cgroupfs --storage-driver=vfs --root={home}/.local/share/containers/vfs-storage",
