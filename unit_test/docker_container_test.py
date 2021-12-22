@@ -93,11 +93,11 @@ def basis_container_kwargs():
 
     HAVE_DOCKER = bool(shutil.which("docker"))
     if HAVE_DOCKER:
-        yield {"oci_exe": "docker", "docker_image": DEFAULT_IMAGE}
+        yield {"container_engine": "docker", "docker_image": DEFAULT_IMAGE}
     HAVE_PODMAN = bool(shutil.which("podman"))
     if HAVE_PODMAN:
         # Basic podman usage
-        yield {"oci_exe": "podman", "docker_image": DEFAULT_IMAGE}
+        yield {"container_engine": "podman", "docker_image": DEFAULT_IMAGE}
 
         # VFS Podman usage (for the podman in docker use-case)
         dpath = Path(temp_test_dir.name)
@@ -165,7 +165,7 @@ def basis_container_kwargs():
         )
 
         yield {
-            "oci_exe": "podman",
+            "container_engine": "podman",
             "docker_image": DEFAULT_IMAGE,
             "env": oci_environ,
         }
@@ -219,7 +219,7 @@ def test_cwd(container_kwargs):
 def test_container_removed(container_kwargs):
     with DockerContainer(**container_kwargs) as container:
         docker_containers_listing = subprocess.run(
-            f"{container.oci_exe} container ls",
+            f"{container.container_engine} container ls",
             shell=True,
             check=True,
             stdout=subprocess.PIPE,
@@ -231,7 +231,7 @@ def test_container_removed(container_kwargs):
         old_container_name = container.name
 
     docker_containers_listing = subprocess.run(
-        f"{container.oci_exe} container ls",
+        f"{container.container_engine} container ls",
         shell=True,
         check=True,
         stdout=subprocess.PIPE,

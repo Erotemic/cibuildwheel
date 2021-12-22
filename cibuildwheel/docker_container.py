@@ -24,8 +24,7 @@ class DockerContainer:
     back to cibuildwheel.
 
     TODO:
-        - [ ] Rename to OCI container as this now generalizes docker and
-              podman?
+        - [ ] Rename to Container as this now generalizes docker and podman?
 
     Example:
         >>> from cibuildwheel.docker_container import *  # NOQA
@@ -49,7 +48,7 @@ class DockerContainer:
         docker_image: str,
         simulate_32_bit: bool = False,
         cwd: Optional[PathOrStr] = None,
-        oci_exe: str = "docker",
+        container_engine: str = "docker",
         env: Optional[Dict[str, str]] = None,
     ):
         if not docker_image:
@@ -59,7 +58,7 @@ class DockerContainer:
         self.simulate_32_bit = simulate_32_bit
         self.cwd = cwd
         self.name: Optional[str] = None
-        self.oci_exe = oci_exe
+        self.container_engine = container_engine
         self.env = env  # If specified, overwrite environment variables
 
     def __enter__(self) -> "DockerContainer":
@@ -69,7 +68,7 @@ class DockerContainer:
 
         subprocess.run(
             [
-                self.oci_exe,
+                self.container_engine,
                 "create",
                 "--env=CIBUILDWHEEL",
                 f"--name={self.name}",
@@ -85,7 +84,7 @@ class DockerContainer:
 
         self.process = subprocess.Popen(
             [
-                self.oci_exe,
+                self.container_engine,
                 "start",
                 "--attach",
                 "--interactive",
@@ -125,7 +124,7 @@ class DockerContainer:
         assert isinstance(self.name, str)
 
         subprocess.run(
-            [self.oci_exe, "rm", "--force", "-v", self.name],
+            [self.container_engine, "rm", "--force", "-v", self.name],
             stdout=subprocess.DEVNULL,
             env=self.env,
         )
@@ -144,7 +143,7 @@ class DockerContainer:
             # This is important if the oci images themselves are in the
             # repo directory we are copying into the container.
             subprocess.run(
-                f"tar cf - . | {self.oci_exe} exec -i {self.name} tar -xC {shell_quote(to_path)} -f -",
+                f"tar cf - . | {self.container_engine} exec -i {self.name} tar -xC {shell_quote(to_path)} -f -",
                 shell=True,
                 check=True,
                 cwd=from_path,
@@ -152,7 +151,7 @@ class DockerContainer:
             )
         else:
             subprocess.run(
-                f'cat {shell_quote(from_path)} | {self.oci_exe} exec -i {self.name} sh -c "cat > {shell_quote(to_path)}"',
+                f'cat {shell_quote(from_path)} | {self.container_engine} exec -i {self.name} sh -c "cat > {shell_quote(to_path)}"',
                 shell=True,
                 check=True,
                 env=self.env,
@@ -162,8 +161,8 @@ class DockerContainer:
         # note: we assume from_path is a dir
         to_path.mkdir(parents=True, exist_ok=True)
 
-        if self.oci_exe == "podman":
-            command = f"{self.oci_exe} exec -i {self.name} tar -cC {shell_quote(from_path)} -f /tmp/output-{self.name}.tar ."
+        if self.container_engine == "podman":
+            command = f"{self.container_engine} exec -i {self.name} tar -cC {shell_quote(from_path)} -f /tmp/output-{self.name}.tar ."
             subprocess.run(
                 command,
                 shell=True,
@@ -173,7 +172,7 @@ class DockerContainer:
             )
 
             command = (
-                f"{self.oci_exe} cp {self.name}:/tmp/output-{self.name}.tar output-{self.name}.tar"
+                f"{self.container_engine} cp {self.name}:/tmp/output-{self.name}.tar output-{self.name}.tar"
             )
             subprocess.run(
                 command,
@@ -191,8 +190,8 @@ class DockerContainer:
                 env=self.env,
             )
             os.unlink(to_path / f"output-{self.name}.tar")
-        elif self.oci_exe == "docker":
-            command = f"{self.oci_exe} exec -i {self.name} tar -cC {shell_quote(from_path)} -f - . | tar -xf -"
+        elif self.container_engine == "docker":
+            command = f"{self.container_engine} exec -i {self.name} tar -cC {shell_quote(from_path)} -f - . | tar -xf -"
             subprocess.run(
                 command,
                 shell=True,
@@ -201,7 +200,7 @@ class DockerContainer:
                 env=self.env,
             )
         else:
-            raise KeyError(self.oci_exe)
+            raise KeyError(self.container_engine)
 
     def glob(self, path: PurePath, pattern: str) -> List[PurePath]:
         glob_pattern = os.path.join(str(path), pattern)
@@ -318,10 +317,10 @@ class DockerContainer:
         return self.call(command, env=environment, capture_output=True)
 
     def debug_info(self) -> str:
-        if self.oci_exe == "podman":
-            command = f"{self.oci_exe} info --debug"
+        if self.container_engine == "podman":
+            command = f"{self.container_engine} info --debug"
         else:
-            command = f"{self.oci_exe} info"
+            command = f"{self.container_engine} info"
         completed = subprocess.run(
             command,
             shell=True,
