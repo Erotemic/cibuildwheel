@@ -171,9 +171,7 @@ class DockerContainer:
                 env=self.env,
             )
 
-            command = (
-                f"{self.container_engine} cp {self.name}:/tmp/output-{self.name}.tar output-{self.name}.tar"
-            )
+            command = f"{self.container_engine} cp {self.name}:/tmp/output-{self.name}.tar output-{self.name}.tar"
             subprocess.run(
                 command,
                 shell=True,

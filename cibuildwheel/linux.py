@@ -307,7 +307,9 @@ def build(options: Options) -> None:
     build_opts = options.build_options(None)
     try:
         # check docker is installed
-        subprocess.run([build_opts.container_engine, "--version"], check=True, stdout=subprocess.DEVNULL)
+        subprocess.run(
+            [build_opts.container_engine, "--version"], check=True, stdout=subprocess.DEVNULL
+        )
     except Exception:
         print(
             f"cibuildwheel: {build_opts.container_engine} not found. An OCI exe like Docker or Podman is required to run Linux builds "
