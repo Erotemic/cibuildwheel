@@ -92,9 +92,11 @@ def basis_container_kwargs():
         # print("SETUP temp_test_dir = {!r}".format(temp_test_dir))
 
     HAVE_DOCKER = bool(shutil.which("docker"))
+    HAVE_PODMAN = bool(shutil.which("podman"))
+
     if HAVE_DOCKER:
         yield {"container_engine": "docker", "docker_image": DEFAULT_IMAGE}
-    HAVE_PODMAN = bool(shutil.which("podman"))
+
     if HAVE_PODMAN:
         # Basic podman usage
         yield {"container_engine": "podman", "docker_image": DEFAULT_IMAGE}

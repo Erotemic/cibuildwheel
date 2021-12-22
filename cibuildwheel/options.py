@@ -419,7 +419,7 @@ class Options:
             test_requires = self.reader.get("test-requires", sep=" ").split()
             test_extras = self.reader.get("test-extras", sep=",")
             build_verbosity_str = self.reader.get("build-verbosity")
-            container_engine = self.reader.get("container_engine")
+            container_engine = self.reader.get("container-engine")
 
             build_frontend: BuildFrontend
             if build_frontend_str == "build":
