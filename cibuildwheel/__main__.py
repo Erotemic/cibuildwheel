@@ -118,6 +118,9 @@ def main() -> None:
                 file=sys.stderr,
             )
             sys.exit(2)
+        platform = 'native'
+
+    if platform == 'native':
         if sys.platform.startswith("linux"):
             platform = "linux"
         elif sys.platform == "darwin":

@@ -126,8 +126,8 @@ def basis_container_kwargs():
             "engine": {"cgroup_manager": "cgroupfs", "events_logger": "file"},
         }
         # https://github.com/containers/storage/blob/main/docs/containers-storage.conf.5.md
-        storage_root = dpath / ".local/share/containers/vfs-storage"
-        run_root = dpath / ".local/share/containers/vfs-runroot"
+        storage_root = dpath / "containers/vfs-storage"
+        run_root = dpath / "containers/vfs-runroot"
         storage_root.mkdir(parents=True, exist_ok=True)
         run_root.mkdir(parents=True, exist_ok=True)
         vfs_containers_storage_conf_data = {
